@@ -26,6 +26,18 @@ const CHANNELS = [
   { id: "la-sexta", name: "La Sexta", type: "atres", slug: "lasexta" },
   { id: "la-septima", name: "La Séptima", type: "hls", url: null }, // pendiente
   {
+    id: "tv3",
+    name: "TV3",
+    type: "hls",
+    url: "https://directes3-tv-cat.3catdirectes.cat/live-content/tv3-hls/master.m3u8",
+  },
+  {
+    id: "3cat-info",
+    name: "3CatInfo",
+    type: "hls",
+    url: "https://directes-tv-cat.3catdirectes.cat/live-content/canal324-hls/master.m3u8",
+  },
+  {
     id: "cnn",
     name: "CNN",
     type: "hls",
@@ -56,17 +68,17 @@ const CHANNELS = [
     url: "https://d2epgk1fomaa1g.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a62b09d1/cc-9n8y4tw0bk3an/live/fast-channel-el-pais/fast-channel-el-pais.m3u8",
   },
   {
-    // El canal no permite incrustar este directo: la pantalla ofrece abrirlo en YouTube
-    id: "ser",
-    name: "SER · Video YouTube",
-    type: "youtube",
-    channelId: "UCQ2Fej5pr1ipVeBWTX8Sc_Q",
-  },
-  {
     // Solo audio (StreamTheWorld). Sin probar desde aquí: si no suena, se borra esta entrada
     id: "ser-radio",
-    name: "SER · Radio",
+    name: "SER • Radio (solo sonido)",
     type: "audio",
     url: "https://playerservices.streamtheworld.com/api/livestream-redirect/CADENASER.mp3",
+  },
+  {
+    // El canal no permite incrustar este directo: la pantalla ofrece abrirlo en YouTube
+    id: "ser",
+    name: "SER • Video (enlace youtube)",
+    type: "youtube",
+    channelId: "UCQ2Fej5pr1ipVeBWTX8Sc_Q",
   },
 ];

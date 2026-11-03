@@ -33,9 +33,8 @@ está en ninguna tienda. Para quitarla, usa el botón **Quitar** de la misma pan
 
 ## Cómo saber que funciona
 
-Abre Antena 3 o La Sexta en una pantallita. El aviso de abajo de la pantallita dice solo «Pulsa «Directo» dentro del
-reproductor» (sin el «Sin el puente de sonido…») y la barra de arriba muestra 🔊 o 🔇. Si instalas el puente con
-Pantallitas ya abierto, recarga la página.
+Abre Antena 3 o La Sexta en una pantallita. Si el puente funciona, no sale el aviso «Sin el puente de sonido…» abajo de
+la pantallita y la barra de arriba muestra 🔊 o 🔇. Si instalas el puente con Pantallitas ya abierto, recarga la página.
 
 ## Lo que NO hace
 
