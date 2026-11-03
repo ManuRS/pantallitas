@@ -5,6 +5,7 @@
   --text: #e6e8ee;
   --muted: #8b93a4;
   --accent: #4da3ff;
+  --accent-rgb: 77, 163, 255;
   --warn: #ff7b72;
 }
 
@@ -23,6 +24,8 @@ html, body {
   grid-template-columns: 1fr 300px;
   height: 100vh;
 }
+.app.menu-hidden { grid-template-columns: 1fr; }
+.app.menu-hidden .panel { display: none; }
 
 /* ---------- Pantallas ---------- */
 .wall {
@@ -30,8 +33,8 @@ html, body {
   display: grid;
   grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr)); /* dos líneas */
-  gap: 4px;
-  padding: 4px;
+  gap: 6px;
+  padding: 6px;
   min-height: 0;
 }
 
@@ -40,13 +43,28 @@ html, body {
   background: #000;
   border-radius: 6px;
   overflow: hidden;
-  outline: 2px solid transparent;
-  outline-offset: -2px;
   cursor: pointer;
+  transition: box-shadow .15s;
 }
 .screen[hidden] { display: none; }
-.screen.active { outline-color: var(--accent); }
-.screen.dragover { outline-color: #7ee787; outline-style: dashed; }
+
+/* Halo suave de la pantalla con foco */
+.screen.active {
+  z-index: 2;
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), .4), 0 0 12px 2px rgba(var(--accent-rgb), .25);
+}
+.screen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.screen.active::after {
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), .55), inset 0 0 14px rgba(var(--accent-rgb), .16);
+}
+.screen.dragover::after { box-shadow: inset 0 0 0 2px #7ee787; }
 
 .media, .media video, .media iframe {
   position: absolute;
@@ -57,6 +75,8 @@ html, body {
   background: #000;
 }
 .media video { object-fit: contain; }
+/* El iframe de YouTube se traga los clics: solo es interactivo cuando tiene foco */
+.screen:not(.active) .media iframe { pointer-events: none; }
 
 .empty {
   position: absolute;
@@ -98,6 +118,7 @@ html, body {
   font-weight: 600;
 }
 .name { flex: 1; font-weight: 600; text-shadow: 0 1px 2px #000; }
+.aud { font-size: 13px; text-shadow: 0 1px 2px #000; }
 .actions { display: flex; gap: 4px; pointer-events: auto; }
 .actions button {
   border: 0;
@@ -133,7 +154,17 @@ html, body {
   cursor: pointer;
 }
 
-/* ---------- Panel derecho ---------- */
+/* ---------- Modo foco: una grande y el resto alrededor ----------
+   La geometría (columnas, filas y área de cada pantalla) la calcula app.js. */
+@media (min-width: 901px) {
+  .wall.focus {
+    grid-template-columns: var(--f-cols);
+    grid-template-rows: var(--f-rows);
+  }
+  .wall.focus .screen { grid-area: var(--area); }
+}
+
+/* ---------- Panel lateral ---------- */
 .panel {
   display: flex;
   flex-direction: column;
@@ -143,6 +174,7 @@ html, body {
   border-left: 1px solid var(--line);
   min-height: 0;
 }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .panel h1 { margin: 0; font-size: 18px; }
 .panel h2 {
   margin: 0 0 8px;
@@ -152,7 +184,40 @@ html, body {
   text-transform: uppercase;
   color: var(--muted);
 }
+.panel h2 small { font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; }
 .panel section.grow { flex: 1; min-height: 0; overflow: auto; }
+
+.icon-btn {
+  flex: none;
+  width: 32px; height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  cursor: pointer;
+}
+.icon-btn:hover { border-color: var(--accent); }
+
+.toggle {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+.toggle:hover { border-color: var(--accent); }
+.toggle[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06121f;
+  font-weight: 700;
+}
+.panel-foot .toggle { margin-top: 0; }
 
 .seg {
   display: grid;
@@ -173,6 +238,15 @@ html, body {
 .seg button:last-child { border-right: 0; }
 .seg button:hover { background: rgba(255,255,255,.05); }
 .seg button.on { background: var(--accent); color: #06121f; font-weight: 700; }
+
+.vol { display: flex; align-items: center; gap: 8px; }
+.vol input[type="range"] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.vol output {
+  width: 2.2em;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 
 .channels { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .channels button {
@@ -205,11 +279,49 @@ html, body {
   font-weight: 700;
 }
 
-.hint { margin: 0; font-size: 12px; color: var(--muted); }
+/* Pestaña para volver a mostrar el menú */
+.menu-tab {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  background: var(--panel);
+  color: var(--text);
+  opacity: .4;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.menu-tab[hidden] { display: none; }
+.menu-tab:hover, .menu-tab:focus-visible { opacity: 1; }
+
+/* Información */
+dialog {
+  width: min(520px, 92vw);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text);
+}
+dialog::backdrop { background: rgba(0, 0, 0, .6); }
+.dlg-body { padding: 20px 22px; }
+.dlg-body h2 { margin: 0 0 10px; font-size: 18px; }
+.dlg-body ul { margin: 0; padding-left: 18px; }
+.dlg-body li { margin: 7px 0; font-size: 13.5px; }
+.dlg-body .keys { margin: 14px 0 0; font-size: 13px; color: var(--muted); }
+.dlg-body .close { margin-top: 16px; }
 
 /* ---------- Móvil / pantallas estrechas ---------- */
 @media (max-width: 900px) {
-  .app { grid-template-columns: 1fr; height: auto; }
+  .app, .app.menu-hidden { grid-template-columns: 1fr; height: auto; }
   .wall {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: none;

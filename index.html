@@ -7,11 +7,14 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app">
+  <div class="app" id="app">
     <main id="wall" class="wall" aria-label="Pantallas"></main>
 
-    <aside class="panel">
-      <h1>Multipantalla</h1>
+    <aside class="panel" id="panel">
+      <header class="panel-head">
+        <h1>Multipantalla</h1>
+        <button type="button" id="hideMenu" class="icon-btn" title="Ocultar menú (H)" aria-label="Ocultar menú">⟩</button>
+      </header>
 
       <section>
         <h2>Pantallas</h2>
@@ -20,6 +23,16 @@
           <button type="button" data-count="6">6</button>
           <button type="button" data-count="8">8</button>
         </div>
+        <button type="button" id="focusBtn" class="toggle" aria-pressed="false" title="Modo foco (F)">Modo foco</button>
+      </section>
+
+      <section>
+        <h2>Volumen <small>· pantalla con foco</small></h2>
+        <div class="vol">
+          <button type="button" id="muteBtn" class="icon-btn" title="Silenciar (M)" aria-label="Silenciar" aria-pressed="false">🔊</button>
+          <input type="range" id="volume" min="0" max="100" step="1" aria-label="Volumen">
+          <output id="volOut" for="volume">80</output>
+        </div>
       </section>
 
       <section class="grow">
@@ -27,13 +40,30 @@
         <ul id="channels" class="channels"></ul>
       </section>
 
-      <p class="hint">
-        Pulsa una pantalla (o su número, 1–8, en el teclado) para seleccionarla y
-        elige una cadena; también puedes arrastrar la cadena sobre una pantalla.
-        Todas arrancan sin sonido: usa 🔇 para activar el audio de una.
-      </p>
+      <footer class="panel-foot">
+        <button type="button" id="infoBtn" class="toggle">Información</button>
+      </footer>
     </aside>
   </div>
+
+  <button type="button" id="showMenu" class="menu-tab" title="Mostrar menú (H)" aria-label="Mostrar menú" hidden>⟨</button>
+
+  <dialog id="info" aria-labelledby="infoTitle">
+    <div class="dlg-body">
+      <h2 id="infoTitle">Información</h2>
+      <ul>
+        <li><b>Pantallas:</b> elige 4, 6 u 8. Se reparten en dos filas, de izquierda a derecha.</li>
+        <li><b>Foco:</b> haz clic en una pantalla (o pulsa 1–8). La que tiene foco lleva un halo suave, es la que recibe la cadena que elijas y la única con sonido.</li>
+        <li><b>Cadenas:</b> pulsa una de la lista para ponerla en la pantalla con foco (el foco pasa a la siguiente pantalla; en modo foco se queda en la grande), o arrástrala sobre la pantalla que quieras.</li>
+        <li><b>Volumen:</b> el control del menú ajusta el sonido de la pantalla con foco; las demás van en silencio. El navegador no da sonido hasta que haces el primer clic en la página.</li>
+        <li><b>Modo foco:</b> la pantalla con foco se ve grande y las demás alrededor. Si pulsas una pequeña, pasa a ser la grande y la grande ocupa su sitio. En pantallas estrechas (móvil) se ignora.</li>
+        <li><b>Menú:</b> se oculta con ⟩ y vuelve con la pestaña del borde derecho.</li>
+        <li><b>En cada pantalla</b> (al pasar el ratón): ⛶ pantalla completa y ✕ quitar la cadena.</li>
+      </ul>
+      <p class="keys"><b>Atajos:</b> 1–8 seleccionar · F modo foco · M silenciar · H ocultar/mostrar menú</p>
+      <form method="dialog"><button class="toggle close">Cerrar</button></form>
+    </div>
+  </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
   <script src="channels.js"></script>
