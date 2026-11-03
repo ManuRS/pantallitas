@@ -14,8 +14,24 @@
   let bridgeKnown = "unknown"; // "yes" si algún reproductor de Atresplayer ha avisado, "no" si ninguno lo hizo a tiempo
   let dragFrom = null; // índice de la pantallita que se está arrastrando
 
+  // Listas de TDTChannels (ver CREDITOS.md): se bajan de su web y se guardan en el navegador;
+  // si tienen más de 7 días se vuelven a bajar. Si su JSON no se deja leer desde aquí, se usa su catálogo
+  // en Markdown de GitHub (mismo proyecto, mismos datos).
+  const VIEWS = ["tv", "radio", "favs", "creator"];
+  const REMOTE = "https://www.tdtchannels.com/lists/";
+  const REMOTE_MD = {
+    tv: "https://raw.githubusercontent.com/LaQuay/TDTChannels/master/TELEVISION.md",
+    radio: "https://raw.githubusercontent.com/LaQuay/TDTChannels/master/RADIO.md",
+  };
+  const LIST_MAX_AGE = 7 * 24 * 3600 * 1000;
+  const RETRY_AFTER = 6 * 3600 * 1000; // si la descarga falla, no se insiste hasta pasadas unas horas
+  const LIST_KEY = (kind) => "tv-wall-list-" + kind;
+  const FAVS_KEY = "tv-wall-favs";
+  const HTTPS = location.protocol === "https:";
+
+  // «Creator»: la lista personal (channels.js), con los enlaces a mano. Las de TDTChannels se añaden después.
   const byId = Object.fromEntries(CHANNELS.map((c) => [c.id, c]));
-  const isPlayable = (c) => !!(c.url || c.channelId || c.slug);
+  const isPlayable = (c) => !!(c.url || c.channelId || c.videoId || c.slug);
   const isAudioSlot = (i) => !!(byId[state.slots[i]] && byId[state.slots[i]].type === "audio"); // radio: sin imagen
 
   // ---------- Estado ----------
@@ -31,10 +47,12 @@
 
   const state = {
     count: COUNTS.includes(saved.count) ? saved.count : 6,
+    // ids de cadena; se validan cuando están cargadas las listas (sanitizeSlots)
     slots: Array.from({ length: MAX }, (_, i) => {
       const id = saved.slots && saved.slots[i];
-      return id && byId[id] && isPlayable(byId[id]) ? id : null;
+      return typeof id === "string" ? id : null;
     }),
+    view: VIEWS.includes(saved.view) ? saved.view : "creator", // qué lista se ve en el menú
     active: Number.isInteger(saved.active) && saved.active >= 0 && saved.active < MAX ? saved.active : 0,
     focus: saved.focus !== false,           // modo foco (activado por defecto)
     menuHidden: saved.menuHidden === true,  // menú lateral oculto
@@ -48,7 +66,7 @@
     try {
       localStorage.setItem(KEY, JSON.stringify({
         count: state.count, slots: state.slots, active: state.active,
-        focus: state.focus, menuHidden: state.menuHidden,
+        focus: state.focus, menuHidden: state.menuHidden, view: state.view,
         volume: state.volume, muted: state.muted,
       }));
     } catch { /* sin almacenamiento: no pasa nada */ }
@@ -59,6 +77,9 @@
   const wall = document.getElementById("wall");
   const countEl = document.getElementById("count");
   const listEl = document.getElementById("channels");
+  const listSel = document.getElementById("listSel");
+  const listFilter = document.getElementById("listFilter");
+  const listInfo = document.getElementById("listInfo");
   const focusBtn = document.getElementById("focusBtn");
   const volRange = document.getElementById("volume");
   const volOut = document.getElementById("volOut");
@@ -216,8 +237,15 @@
     s.nameEl.textContent = ch ? ch.name : "";
     s.radioName.textContent = ch ? ch.name : "";
     s.errMsg.textContent = DEFAULT_ERR;
-    s.errLink.hidden = !(ch && ch.type === "youtube");
-    if (ch && ch.type === "youtube") s.errLink.href = "https://www.youtube.com/channel/" + ch.channelId + "/live";
+    // Si falla, se ofrece abrirla donde sí funciona: YouTube o la web de la cadena
+    const link = !ch ? null : ch.type === "youtube"
+      ? (ch.videoId ? "https://www.youtube.com/watch?v=" + ch.videoId : "https://www.youtube.com/channel/" + ch.channelId + "/live")
+      : ch.web || null;
+    s.errLink.hidden = !link;
+    if (link) {
+      s.errLink.href = link;
+      s.errLink.textContent = ch.type === "youtube" ? "Abrir en YouTube" : "Abrir su web";
+    }
     if (!ch) { applyAudio(); return; }
 
     // Atresplayer sin puente: no se puede silenciar, así que solo corre la pantallita con foco
@@ -230,11 +258,13 @@
     if (ch.type === "youtube") {
       const f = document.createElement("iframe");
       f.title = ch.name;
-      f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; // 'allow' ya cubre el pantalla completa
+      f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; // 'allow' ya cubre el pantalla completo
       f.referrerPolicy = "strict-origin-when-cross-origin"; // YouTube necesita saber desde qué página se incrusta
       const origin = /^https?:$/.test(location.protocol) ? "&origin=" + encodeURIComponent(location.origin) : "";
-      f.src = "https://www.youtube.com/embed/live_stream?channel=" + encodeURIComponent(ch.channelId) +
-        "&autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0" + origin;
+      const base = ch.videoId
+        ? "https://www.youtube.com/embed/" + encodeURIComponent(ch.videoId) + "?"
+        : "https://www.youtube.com/embed/live_stream?channel=" + encodeURIComponent(ch.channelId) + "&";
+      f.src = base + "autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0" + origin;
       // el reproductor de YouTube tarda en estar listo: se reenvía el audio (y la escucha de errores) varias veces
       const sync = () => { if (s.node === f) { ytListen(s); applyAudio(); } };
       f.addEventListener("load", () => {
@@ -275,10 +305,29 @@
       a.autoplay = true;
       a.preload = "none";
       a.addEventListener("error", () => { if (s.node === a) showError(s, "La radio no arranca (¿el stream ha cambiado?)."); });
-      a.src = ch.url;
       s.media.appendChild(a);
       s.node = a;
       s.el.classList.add("is-audio");
+      if (/\.m3u8(\?|#|$)/i.test(ch.url) && window.Hls && Hls.isSupported()) {
+        // radio en HLS (muchas de TDTChannels): hls.js sobre el <audio>
+        const hls = new Hls();
+        s.hls = hls;
+        hls.loadSource(ch.url);
+        hls.attachMedia(a);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => { a.play().catch(() => {}); });
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (!data.fatal) return;
+          if (s.retries < 3) {
+            s.retries++;
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+            else setTimeout(() => s.hls === hls && hls.startLoad(), 2000);
+          } else {
+            showError(s, "La radio no arranca (¿el stream ha cambiado?).");
+          }
+        });
+      } else {
+        a.src = ch.url;
+      }
       a.play().catch(() => {});
     } else {
       const v = document.createElement("video");
@@ -407,7 +456,7 @@
     screens[i].retries = 0;
     start(screens[i]);
     placeFocus();
-    renderList();
+    renderBadges();
     save();
   }
 
@@ -420,7 +469,7 @@
       start(screens[k]);
     });
     placeFocus();
-    renderList();
+    renderBadges();
     save();
   }
 
@@ -444,7 +493,7 @@
     placeFocus();
     setActive(state.active);
     [...countEl.children].forEach((b) => b.classList.toggle("on", Number(b.dataset.count) === state.count));
-    renderList();
+    renderBadges();
     save();
   }
 
@@ -528,52 +577,257 @@
     save();
   }
 
-  // ---------- Lista de cadenas ----------
-  function renderList() {
-    listEl.innerHTML = "";
-    CHANNELS.forEach((ch) => {
-      const li = document.createElement("li");
-      const b = document.createElement("button");
-      b.type = "button";
-      const playable = isPlayable(ch);
-      b.disabled = !playable;
+  // ---------- Listas de cadenas ----------
+  // Creator: channels.js, a mano. Tele y Radio: TDTChannels (se bajan y se refrescan a los 7 días).
+  // Favs: las que se marcan con la estrella en Tele o Radio.
+  const catalogs = { tv: null, radio: null }; // { v, h, t, channels, hidden, tryAt, loading }
+  const openAmbits = new Set();               // ámbitos desplegados (clave: lista|ámbito)
+  const VIEW_NAME = { tv: "Tele", radio: "Radio" };
+  let favs = (() => {
+    const a = read(FAVS_KEY);
+    return Array.isArray(a) ? a.filter((x) => typeof x === "string") : [];
+  })();
+  let filterText = "";
 
-      const label = document.createElement("span");
-      label.className = "label";
-      label.textContent = ch.name;
-      b.appendChild(label);
+  const fold = (t) => String(t).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const register = (list) => list.forEach((ch) => { byId[ch.id] = ch; });
 
-      if (!playable) {
+  function saveFavs() {
+    try { localStorage.setItem(FAVS_KEY, JSON.stringify(favs)); } catch { /* sin almacenamiento */ }
+  }
+  function toggleFav(id) {
+    const i = favs.indexOf(id);
+    if (i >= 0) favs.splice(i, 1); else favs.push(id);
+    saveFavs();
+    return i < 0;
+  }
+
+  function readCache(kind) {
+    const o = read(LIST_KEY(kind));
+    return o && o.v === 1 && o.h === HTTPS && Array.isArray(o.channels) ? o : null;
+  }
+  function writeCache(kind, c) {
+    try { localStorage.setItem(LIST_KEY(kind), JSON.stringify(c)); } catch { /* sin almacenamiento */ }
+  }
+  function makeCache(kind, raw) {
+    const r = Catalog.normalize(raw, kind, { https: HTTPS });
+    return { v: 1, h: HTTPS, t: Date.now(), channels: r.channels, hidden: r.hidden };
+  }
+
+  // La lista guardada en el navegador (vacía la primera vez; se baja justo después de arrancar)
+  function loadCatalog(kind) {
+    const c = readCache(kind) || { v: 1, h: HTTPS, t: 0, channels: [], hidden: 0 };
+    catalogs[kind] = c;
+    register(c.channels);
+  }
+
+  async function get(url, as) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
+      if (!res.ok) throw new Error(res.status);
+      return await (as === "json" ? res.json() : res.text());
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // El JSON de tdtchannels.com y, si no se puede, el catálogo Markdown de su GitHub
+  async function download(kind) {
+    const attempts = [
+      async () => get(REMOTE + kind + ".json", "json"),
+      async () => Catalog.parseMarkdown(await get(REMOTE_MD[kind], "text")),
+    ];
+    for (const attempt of attempts) {
+      try {
+        const c = makeCache(kind, await attempt());
+        if (c.channels.length >= 20) return c; // menos: algo va mal con esa fuente
+      } catch { /* se prueba la siguiente */ }
+    }
+    throw new Error("no se pudo bajar la lista");
+  }
+
+  // Baja la lista si no hay ninguna o si tiene más de 7 días
+  async function refreshCatalog(kind) {
+    const c = catalogs[kind];
+    const now = Date.now();
+    if (c.channels.length) {
+      if (now - c.t < LIST_MAX_AGE) return;
+      if (c.tryAt && now - c.tryAt < RETRY_AFTER) return; // ya falló hace poco
+    }
+    c.loading = true;
+    renderList(true);
+    try {
+      const nc = await download(kind);
+      catalogs[kind] = nc;
+      register(nc.channels); // las antiguas se quedan registradas por si están en una pantallita
+      writeCache(kind, nc);
+    } catch {
+      c.loading = false;
+      c.tryAt = now;
+      if (c.channels.length) writeCache(kind, c);
+    }
+    renderList(true);
+  }
+
+  // Tras cargar las listas se descartan las cadenas guardadas que ya no existen
+  function sanitizeSlots() {
+    state.slots = state.slots.map((id) => (id && byId[id] && isPlayable(byId[id]) ? id : null));
+  }
+
+  function viewChannels() {
+    if (state.view === "creator") return CHANNELS;
+    if (state.view === "favs") return favs.map((id) => byId[id]).filter((c) => c && isPlayable(c));
+    return catalogs[state.view] ? catalogs[state.view].channels : [];
+  }
+
+  function ageText(c) {
+    if (!c || !c.t) return "";
+    const days = Math.floor((Date.now() - c.t) / 86400000);
+    const when = days <= 0 ? "de hoy" : days === 1 ? "de ayer" : `de hace ${days} días`;
+    return "lista " + when;
+  }
+
+  function setStar(btn, on) {
+    btn.textContent = on ? "★" : "☆";
+    btn.setAttribute("aria-pressed", String(on));
+    btn.title = on ? "Quitar de favoritos" : "Añadir a favoritos";
+  }
+
+  function makeRow(ch, stars) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.dataset.id = ch.id;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "ch";
+    const playable = isPlayable(ch);
+    b.disabled = !playable;
+
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = ch.name;
+    b.appendChild(label);
+
+    if (!playable) {
+      const t = document.createElement("span");
+      t.className = "tag";
+      t.textContent = "pendiente";
+      b.appendChild(t);
+    } else {
+      const note = ch.note || (state.view === "favs" ? VIEW_NAME[ch.kind] : "");
+      if (note) {
         const t = document.createElement("span");
         t.className = "tag";
-        t.textContent = "pendiente";
+        t.textContent = note;
         b.appendChild(t);
-      } else {
-        if (ch.note) {
-          const t = document.createElement("span");
-          t.className = "tag";
-          t.textContent = ch.note;
-          b.appendChild(t);
-        }
-        const badges = document.createElement("span");
-        badges.className = "badges";
-        for (let i = 0; i < state.count; i++) {
-          if (state.slots[i] === ch.id) {
-            const n = document.createElement("span");
-            n.className = "badge";
-            n.textContent = i + 1;
-            badges.appendChild(n);
-          }
-        }
-        b.appendChild(badges);
-        b.draggable = true;
-        b.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", ch.id));
-        // La cadena va a la pantalla con foco, pasa a oírse y el foco se queda en ese hueco
-        b.addEventListener("click", () => assign(state.active, ch.id));
       }
-      li.appendChild(b);
-      listEl.appendChild(li);
+      const badges = document.createElement("span");
+      badges.className = "badges";
+      b.appendChild(badges);
+      b.draggable = true;
+      b.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", ch.id));
+      // La cadena va a la pantalla con foco, pasa a oírse y el foco se queda en ese hueco
+      b.addEventListener("click", () => assign(state.active, ch.id));
+    }
+    row.appendChild(b);
+
+    if (stars && playable) {
+      const star = document.createElement("button");
+      star.type = "button";
+      star.className = "star";
+      setStar(star, favs.includes(ch.id));
+      star.addEventListener("click", () => {
+        const on = toggleFav(ch.id);
+        if (state.view === "favs") renderList(true); else setStar(star, on);
+      });
+      row.appendChild(star);
+    }
+    return row;
+  }
+
+  // keepScroll: al marcar una estrella o actualizar la lista no se pierde el sitio por el que ibas
+  function renderList(keepScroll) {
+    const top = listEl.scrollTop;
+    const view = state.view;
+    const stars = view !== "creator";
+    const q = fold(filterText.trim());
+    const all = viewChannels();
+    const list = q ? all.filter((c) => fold(c.name + " " + (c.ambit || "")).includes(q)) : all;
+
+    listEl.innerHTML = "";
+    listFilter.hidden = view === "creator";
+
+    const cat = catalogs[view];
+    let info = "";
+    if (view === "tv" || view === "radio") {
+      if (!all.length) info = cat && cat.loading ? "Descargando la lista…" : "No se ha podido cargar la lista.";
+      else {
+        info = `${all.length} canales · ${ageText(cat)}`;
+        if (cat.hidden) info += ` · ${cat.hidden} sin emisión compatible, ocultos`;
+        if (cat.tryAt && Date.now() - cat.tryAt < RETRY_AFTER) info += " · no se pudo actualizar";
+      }
+    } else if (view === "favs" && !all.length) {
+      info = "Marca la estrella ☆ de una cadena en Tele o Radio y saldrá aquí.";
+    }
+    if (q && !list.length) info = `Nada que coincida con «${filterText.trim()}».`;
+    listInfo.textContent = info;
+    listInfo.hidden = !info;
+
+    if (view === "tv" || view === "radio") {
+      // Agrupadas por ámbito (Nacionales, Andalucía...), plegadas salvo al buscar
+      const groups = new Map();
+      list.forEach((ch) => {
+        const k = ch.ambit || "Otras";
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(ch);
+      });
+      groups.forEach((chs, name) => {
+        const key = view + "|" + name;
+        const d = document.createElement("details");
+        d.open = !!q || openAmbits.has(key);
+        const sum = document.createElement("summary");
+        sum.textContent = `${name} (${chs.length})`;
+        d.appendChild(sum);
+        d.addEventListener("toggle", () => {
+          if (q) return;
+          if (d.open) openAmbits.add(key); else openAmbits.delete(key);
+        });
+        chs.forEach((ch) => d.appendChild(makeRow(ch, stars)));
+        listEl.appendChild(d);
+      });
+    } else {
+      list.forEach((ch) => listEl.appendChild(makeRow(ch, stars)));
+    }
+    renderBadges();
+    if (keepScroll) listEl.scrollTop = top;
+  }
+
+  // Los números de pantallita junto a cada cadena (se actualizan sin recomponer toda la lista)
+  function renderBadges() {
+    listEl.querySelectorAll(".row").forEach((row) => {
+      const badges = row.querySelector(".badges");
+      if (!badges) return;
+      badges.innerHTML = "";
+      for (let i = 0; i < state.count; i++) {
+        if (state.slots[i] === row.dataset.id) {
+          const n = document.createElement("span");
+          n.className = "badge";
+          n.textContent = i + 1;
+          badges.appendChild(n);
+        }
+      }
     });
+  }
+
+  function setView(v) {
+    state.view = v;
+    listSel.value = v;
+    filterText = "";        // cada lista empieza sin búsqueda
+    listFilter.value = "";
+    renderList();
+    save();
   }
 
   // ---------- Eventos globales ----------
@@ -583,6 +837,9 @@
     state.count = Number(b.dataset.count);
     layout();
   });
+
+  listSel.addEventListener("change", () => setView(listSel.value));
+  listFilter.addEventListener("input", () => { filterText = listFilter.value; renderList(); });
 
   focusBtn.addEventListener("click", () => setFocusMode(!state.focus));
   hideBtn.addEventListener("click", () => setMenuHidden(true));
@@ -606,7 +863,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey || infoDlg.open) return;
     const t = e.target;
-    if (t && (t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && t.type !== "range"))) return;
+    if (t && (t.tagName === "TEXTAREA" || t.tagName === "SELECT" || (t.tagName === "INPUT" && t.type !== "range"))) return;
     const k = e.key.toLowerCase();
     const n = Number(k);
     if (n >= 1 && n <= MAX) setActive(n - 1);
@@ -616,6 +873,12 @@
     else if (k === "h") setMenuHidden(!state.menuHidden);
   });
 
+  // Arranque: se leen las listas guardadas, se monta la rejilla y, si hace falta, se bajan las nuevas por detrás
   setMenuHidden(state.menuHidden);
+  listSel.value = state.view;
+  Object.keys(catalogs).forEach(loadCatalog);
+  sanitizeSlots();
+  renderList();
   layout();
+  Object.keys(catalogs).forEach(refreshCatalog);
 })();
