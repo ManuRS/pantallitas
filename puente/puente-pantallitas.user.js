@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pantallitas · puente de sonido con Atresplayer
 // @namespace    https://github.com/ManuRS/pantallitas
-// @version      1.0.0
+// @version      1.1.0
 // @description  Deja que Pantallitas silencie (y ponga a su volumen) el reproductor incrustado de Atresplayer.
 // @match        https://www.atresplayer.com/embed/live/*
 // @match        https://atresplayer.com/embed/live/*
@@ -18,15 +18,20 @@
 (function () {
   'use strict';
 
-  // Páginas que pueden darle órdenes (https://manurs.github.io/pantallitas/, y localhost para probar en local)
-  const PERMITIDOS = /^(https:\/\/manurs\.github\.io|https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?)$/i;
+  // Páginas que pueden darle órdenes (https://manurs.github.io/pantallitas/ y https://pantallitas.pages.dev,
+  // y localhost para probar en local)
+  const PERMITIDOS = /^(https:\/\/(manurs\.github\.io|pantallitas\.pages\.dev)|https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?)$/i;
   const REAPLICAR_MS = 1000;
 
   if (window.parent === window) return; // abierto solo, fuera de Pantallitas: no hace nada
 
   const origenPadre = (location.ancestorOrigins && location.ancestorOrigins[0]) || '';
   if (origenPadre && !PERMITIDOS.test(origenPadre)) return; // lo incrusta otra web: ni caso
-  const destino = origenPadre || 'https://manurs.github.io';
+  // Firefox no tiene ancestorOrigins: entonces se usa el origen de la página que nos incrusta (document.referrer)
+  let origenRef = '';
+  try { origenRef = document.referrer ? new URL(document.referrer).origin : ''; } catch (e) { /* sin referrer */ }
+  if (!origenPadre && origenRef && !PERMITIDOS.test(origenRef)) return;
+  const destino = origenPadre || origenRef || 'https://manurs.github.io';
 
   let silenciado = false; // lo último que pidió Pantallitas
   let volumen = null;
