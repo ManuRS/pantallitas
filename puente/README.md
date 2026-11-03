@@ -10,16 +10,7 @@ Atresplayer que tiene el foco (las demás se quedan en «En pausa, pulsa para re
 
 ## Instalarlo
 
-Hazlo en el navegador donde abres Pantallitas, y recarga Pantallitas al terminar.
-
-### Opción A: Tampermonkey o Violentmonkey (la más rápida)
-
-1. Instala [Tampermonkey](https://www.tampermonkey.net/) o Violentmonkey.
-2. Crea un script nuevo y pega todo el contenido de [`puente-pantallitas.user.js`](puente-pantallitas.user.js).
-3. En las versiones recientes de Chrome, Edge y Brave hay que activar además **«Permitir scripts de usuario»** en los
-   detalles de la extensión (`chrome://extensions`).
-
-### Opción B: extensión sin gestor de scripts (Chrome, Edge, Brave y otros Chromium)
+Hazlo en el navegador donde abres Pantallitas (Chrome, Edge, Brave y otros Chromium), y recarga Pantallitas al terminar.
 
 1. Descarga los dos archivos, [`manifest.json`](manifest.json) y [`puente-pantallitas.user.js`](puente-pantallitas.user.js),
    y ponlos juntos en una carpeta (por ejemplo `puente`).
@@ -28,8 +19,6 @@ Hazlo en el navegador donde abres Pantallitas, y recarga Pantallitas al terminar
 
 Chrome puede avisar al arrancar de que hay extensiones de modo desarrollador sin publicar: es lo esperado, porque no
 está en ninguna tienda. Para quitarla, usa el botón **Quitar** de la misma pantalla.
-
-> Firefox: usa la opción A (Tampermonkey o Violentmonkey).
 
 ## Cómo saber que funciona
 
