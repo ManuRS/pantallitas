@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Multipantalla TV</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <main id="wall" class="wall" aria-label="Pantallas"></main>
+
+    <aside class="panel">
+      <h1>Multipantalla</h1>
+
+      <section>
+        <h2>Pantallas</h2>
+        <div id="count" class="seg" role="group" aria-label="Número de pantallas">
+          <button type="button" data-count="4">4</button>
+          <button type="button" data-count="6">6</button>
+          <button type="button" data-count="8">8</button>
+        </div>
+      </section>
+
+      <section class="grow">
+        <h2>Cadenas</h2>
+        <ul id="channels" class="channels"></ul>
+      </section>
+
+      <p class="hint">
+        Pulsa una pantalla (o su número, 1–8, en el teclado) para seleccionarla y
+        elige una cadena; también puedes arrastrar la cadena sobre una pantalla.
+        Todas arrancan sin sonido: usa 🔇 para activar el audio de una.
+      </p>
+    </aside>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
+  <script src="channels.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
