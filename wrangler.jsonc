@@ -1,0 +1,8 @@
+{
+  // Despliegue en Cloudflare (npx wrangler deploy): sitio estatico, sin Worker. Se sirve la raiz del repo.
+  "name": "pantallitas",
+  "compatibility_date": "2026-11-03",
+  "assets": {
+    "directory": "./"
+  }
+}

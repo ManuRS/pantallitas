@@ -1,0 +1,6 @@
+# Lo que NO se publica en Cloudflare (la web solo necesita index.html, css, js, logo y puente/)
+wrangler.jsonc
+.assetsignore
+.git
+node_modules
+CREDITOS.md
