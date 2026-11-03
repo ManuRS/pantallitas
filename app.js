@@ -3,20 +3,25 @@
 
   const MAX = 8;
   const COUNTS = [4, 6, 8];
-  const KEY = "tv-wall-v2";
-  const OLD_KEY = "tv-wall-v1"; // se aprovecha el estado de la v1 si existe
+  const KEY = "tv-wall-v3";
+  const OLD_KEYS = ["tv-wall-v2", "tv-wall-v1"]; // se aprovecha el estado de versiones anteriores
   const DEFAULT_ERR = "Esta cadena se ha puesto tonta y no arranca";
   const SWAP_MIME = "application/x-pantallitas-swap";
   let dragFrom = null; // índice de la pantallita que se está arrastrando
 
   const byId = Object.fromEntries(CHANNELS.map((c) => [c.id, c]));
   const isPlayable = (c) => !!(c.url || c.channelId);
+  const isAudioSlot = (i) => !!(byId[state.slots[i]] && byId[state.slots[i]].type === "audio"); // radio: sin imagen
 
   // ---------- Estado ----------
   function read(key) {
     try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
   }
-  const saved = read(KEY) || read(OLD_KEY) || {};
+  // Si solo hay estado antiguo se hereda, pero el modo foco arranca activado (ahora es el de por defecto)
+  const saved = read(KEY) || (() => {
+    const old = OLD_KEYS.map(read).find(Boolean);
+    return old ? { ...old, focus: true } : {};
+  })();
   const clamp01 = (v, d) => (typeof v === "number" && isFinite(v) ? Math.min(1, Math.max(0, v)) : d);
 
   const state = {
@@ -26,7 +31,7 @@
       return id && byId[id] && isPlayable(byId[id]) ? id : null;
     }),
     active: Number.isInteger(saved.active) && saved.active >= 0 && saved.active < MAX ? saved.active : 0,
-    focus: saved.focus === true,            // modo foco
+    focus: saved.focus !== false,           // modo foco (activado por defecto)
     menuHidden: saved.menuHidden === true,  // menú lateral oculto
     volume: clamp01(saved.volume, 0.8),
     muted: saved.muted === true,
@@ -312,7 +317,7 @@
   function setActive(i) {
     if (i < 0 || i >= state.count) return;
     state.active = i;
-    if (state.focus) promote(i);
+    if (state.focus && !isAudioSlot(i)) promote(i); // una radio no se pone en grande: no tiene imagen
     screens.forEach((s) => s.el.classList.toggle("active", s.i === i));
     applyAudio();
     save();
@@ -322,6 +327,7 @@
     state.slots[i] = id;
     screens[i].retries = 0;
     start(screens[i]);
+    placeFocus();
     renderList();
     save();
   }
@@ -334,6 +340,7 @@
       screens[k].retries = 0;
       start(screens[k]);
     });
+    placeFocus();
     renderList();
     save();
   }
@@ -393,6 +400,14 @@
     placeFocus();
   }
 
+  // Una radio no debe ocupar la casilla grande: si le toca, cede el sitio a una pantallita con imagen
+  function keepRadioOutOfBig() {
+    const big = state.order[0];
+    if (!isAudioSlot(big)) return;
+    const p = state.order.findIndex((idx) => state.slots[idx] && !isAudioSlot(idx));
+    if (p > 0) [state.order[0], state.order[p]] = [state.order[p], state.order[0]];
+  }
+
   function placeFocus() {
     wall.classList.toggle("focus", state.focus);
     focusBtn.setAttribute("aria-pressed", String(state.focus));
@@ -400,6 +415,7 @@
       screens.forEach((s) => s.el.style.removeProperty("--area"));
       return;
     }
+    keepRadioOutOfBig();
     const g = focusGeometry(state.count);
     wall.style.setProperty("--f-cols", g.cols);
     wall.style.setProperty("--f-rows", g.rows);

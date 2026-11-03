@@ -32,6 +32,18 @@ const CHANNELS = [
     url: "https://dqco14bu26p3z.cloudfront.net/30505/89006005/hls/master.m3u8?ads.xumo_channelId=89006005&ads.xumo_streamId=89006005",
   },
   {
+    id: "cbs",
+    name: "CBS News",
+    type: "hls",
+    url: "https://cbsn-us.cbsnstream.cbsnews.com/out/v1/55a8648e8f134e82a470f83d562deeca/master.m3u8",
+  },
+  {
+    id: "bloomberg",
+    name: "Bloomberg",
+    type: "hls",
+    url: "https://www.bloomberg.com/media-manifest/streams/us.m3u8",
+  },
+  {
     id: "el-pais",
     name: "El País",
     type: "hls",
