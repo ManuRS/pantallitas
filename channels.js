@@ -1,3 +1,6 @@
+// «Creator»: la lista personal, con los enlaces a mano (no se lee de ningún JSON ni lleva estrellas).
+// Las listas Tele y Radio vienen de TDTChannels: ver catalog.js y CREDITOS.md.
+//
 // Lista de cadenas disponibles.
 //  - type "hls":     url a un .m3u8 (se reproduce con hls.js / HLS nativo en Safari)
 //  - type "youtube": channelId del canal (se incrusta su directo)
