@@ -145,6 +145,7 @@ html, body {
   padding: 16px;
 }
 .screen.has-error .err { display: flex; }
+.err a { color: var(--accent); }
 .err button {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -279,28 +280,32 @@ html, body {
   font-weight: 700;
 }
 
-/* Pestaña para volver a mostrar el menú */
+/* Pestaña para volver a mostrar el menú: a la misma altura que el botón de ocultarlo
+   (16 px del borde superior, 32 px de alto) */
 .menu-tab {
   position: fixed;
   right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 16px;
   z-index: 20;
   display: grid;
   place-items: center;
   width: 22px;
-  height: 64px;
+  height: 32px;
   border: 1px solid var(--line);
   border-right: 0;
   border-radius: 8px 0 0 8px;
   background: var(--panel);
   color: var(--text);
-  opacity: .4;
+  opacity: .6;
   cursor: pointer;
   transition: opacity .15s;
 }
 .menu-tab[hidden] { display: none; }
 .menu-tab:hover, .menu-tab:focus-visible { opacity: 1; }
+/* Con el menú oculto se deja un hueco a la derecha para que la pestaña no tape los botones de las pantallas */
+.app.menu-hidden .wall { padding-right: 28px; }
+.app.menu-hidden .wall:fullscreen { padding-right: 6px; }
+.wall:fullscreen { background: var(--bg); }
 
 /* Información */
 dialog {
@@ -313,7 +318,9 @@ dialog {
 }
 dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .dlg-body { padding: 20px 22px; }
-.dlg-body h2 { margin: 0 0 10px; font-size: 18px; }
+.dlg-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.dlg-head .logo { flex: none; border-radius: 12px; }
+.dlg-body h2 { margin: 0; font-size: 18px; }
 .dlg-body ul { margin: 0; padding-left: 18px; }
 .dlg-body li { margin: 7px 0; font-size: 13.5px; }
 .dlg-body .keys { margin: 14px 0 0; font-size: 13px; color: var(--muted); }

@@ -54,6 +54,7 @@
   const showBtn = document.getElementById("showMenu");
   const infoBtn = document.getElementById("infoBtn");
   const infoDlg = document.getElementById("info");
+  const fsBtn = document.getElementById("fsBtn");
 
   const screens = Array.from({ length: MAX }, (_, i) => createScreen(i));
 
@@ -72,13 +73,15 @@
           <button type="button" class="b-clear" title="Quitar cadena">✕</button>
         </div>
       </div>
-      <div class="err"><span>No se pudo reproducir esta cadena</span><button type="button">Reintentar</button></div>`;
+      <div class="err"><span class="err-msg">No se pudo reproducir esta cadena</span><a class="err-link" href="#" target="_blank" rel="noopener" hidden>Abrir en YouTube</a><button type="button">Reintentar</button></div>`;
 
     const s = {
       i, el,
       media: el.querySelector(".media"),
       nameEl: el.querySelector(".name"),
       audEl: el.querySelector(".aud"),
+      errMsg: el.querySelector(".err-msg"),
+      errLink: el.querySelector(".err-link"),
       node: null,   // <video> o <iframe>
       hls: null,
       retries: 0,
@@ -117,26 +120,60 @@
     s.el.classList.remove("has-error");
   }
 
-  function showError(s) { s.el.classList.add("has-error"); }
+  const DEFAULT_ERR = "No se pudo reproducir esta cadena";
+  function showError(s, msg) {
+    s.errMsg.textContent = msg || DEFAULT_ERR;
+    s.el.classList.add("has-error");
+  }
+
+  // Errores que YouTube comunica desde dentro del iframe (hay que "escucharle" tras cargar)
+  const YT_ERRORS = {
+    100: "El directo no está disponible ahora mismo (¿no está emitiendo?).",
+    101: "El canal no permite incrustar este directo.",
+    150: "El canal no permite incrustar este directo.",
+    152: "El canal no permite incrustar este directo.",
+    153: "YouTube rechaza la incrustación (error 153). Suele ocurrir si la página se abre como archivo local: sírvela por http(s).",
+  };
+
+  function ytListen(s) {
+    if (s.node && s.node.contentWindow) {
+      s.node.contentWindow.postMessage(JSON.stringify({ event: "listening", id: s.i, channel: "widget" }), "*");
+    }
+  }
+
+  window.addEventListener("message", (e) => {
+    if (!/^https:\/\/(www\.)?youtube(-nocookie)?\.com$/.test(e.origin)) return;
+    const s = screens.find((x) => x.node && x.node.contentWindow === e.source);
+    if (!s) return;
+    let d = e.data;
+    if (typeof d === "string") { try { d = JSON.parse(d); } catch { return; } }
+    if (d && d.event === "onError") showError(s, YT_ERRORS[d.info] || `YouTube devolvió el error ${d.info}.`);
+  });
 
   function start(s) {
     stop(s);
     const ch = byId[state.slots[s.i]];
     s.el.classList.toggle("is-empty", !ch);
     s.nameEl.textContent = ch ? ch.name : "";
+    s.errMsg.textContent = DEFAULT_ERR;
+    s.errLink.hidden = !(ch && ch.type === "youtube");
+    if (ch && ch.type === "youtube") s.errLink.href = "https://www.youtube.com/channel/" + ch.channelId + "/live";
     if (!ch) { applyAudio(); return; }
 
     if (ch.type === "youtube") {
       const f = document.createElement("iframe");
-      f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
-      f.allowFullscreen = true;
+      f.title = ch.name;
+      f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen"; // 'allow' ya cubre el pantalla completa
+      f.referrerPolicy = "strict-origin-when-cross-origin"; // YouTube necesita saber desde qué página se incrusta
+      const origin = /^https?:$/.test(location.protocol) ? "&origin=" + encodeURIComponent(location.origin) : "";
       f.src = "https://www.youtube.com/embed/live_stream?channel=" + encodeURIComponent(ch.channelId) +
-        "&autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0";
-      // el reproductor de YouTube tarda en estar listo: se reenvía el audio un par de veces
+        "&autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0" + origin;
+      // el reproductor de YouTube tarda en estar listo: se reenvía el audio (y la escucha de errores) varias veces
+      const sync = () => { if (s.node === f) { ytListen(s); applyAudio(); } };
       f.addEventListener("load", () => {
-        applyAudio();
-        setTimeout(applyAudio, 1500);
-        setTimeout(applyAudio, 4000);
+        sync();
+        setTimeout(sync, 1500);
+        setTimeout(sync, 4000);
       });
       s.media.appendChild(f);
       s.node = f;
@@ -363,11 +400,8 @@
         b.appendChild(badges);
         b.draggable = true;
         b.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", ch.id));
-        b.addEventListener("click", () => {
-          assign(state.active, ch.id);
-          // En la rejilla el foco salta a la siguiente pantalla; en modo foco se queda en la grande
-          if (!state.focus) setActive((state.active + 1) % state.count);
-        });
+        // La cadena va a la pantalla con foco, pasa a oírse y el foco se queda en ese hueco
+        b.addEventListener("click", () => assign(state.active, ch.id));
       }
       li.appendChild(b);
       listEl.appendChild(li);
@@ -386,6 +420,17 @@
   hideBtn.addEventListener("click", () => setMenuHidden(true));
   showBtn.addEventListener("click", () => setMenuHidden(false));
 
+  // Pantalla completa de toda la rejilla (no de un stream)
+  function toggleWallFullscreen() {
+    if (document.fullscreenElement === wall) document.exitFullscreen();
+    else if (wall.requestFullscreen) wall.requestFullscreen().catch(() => {});
+  }
+  if (!wall.requestFullscreen) fsBtn.hidden = true; // p. ej. iPhone
+  fsBtn.addEventListener("click", toggleWallFullscreen);
+  document.addEventListener("fullscreenchange", () => {
+    fsBtn.setAttribute("aria-pressed", String(document.fullscreenElement === wall));
+  });
+
   infoBtn.addEventListener("click", () => infoDlg.showModal());
   infoDlg.addEventListener("click", (e) => { if (e.target === infoDlg) infoDlg.close(); }); // clic en el fondo
 
@@ -398,6 +443,7 @@
     if (n >= 1 && n <= MAX) setActive(n - 1);
     else if (k === "m") toggleMute();
     else if (k === "f") setFocusMode(!state.focus);
+    else if (k === "p") toggleWallFullscreen();
     else if (k === "h") setMenuHidden(!state.menuHidden);
   });
 

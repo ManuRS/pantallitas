@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pantallitas">
+  <rect width="64" height="64" rx="14" fill="#171a21"/>
+  <!-- la pantalla grande, con cara guiñándote un ojo -->
+  <rect x="7" y="7" width="32.4" height="32.4" rx="5" fill="#4da3ff"/>
+  <circle cx="17.5" cy="19.5" r="2.4" fill="#06121f"/>
+  <path d="M26.4 20.2h5" fill="none" stroke="#06121f" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M16.8 27.3Q23.2 34 29.6 27.3" fill="none" stroke="#06121f" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- las pantallitas de alrededor -->
+  <rect x="42.4" y="7" width="14.7" height="14.7" rx="3.5" fill="#ff7b72"/>
+  <rect x="42.4" y="24.7" width="14.7" height="14.7" rx="3.5" fill="#7ee787"/>
+  <rect x="7" y="42.4" width="14.7" height="14.7" rx="3.5" fill="#f2cc60"/>
+  <rect x="24.7" y="42.4" width="14.7" height="14.7" rx="3.5" fill="#bc8cff"/>
+  <rect x="42.4" y="42.4" width="14.7" height="14.7" rx="3.5" fill="#ffa657"/>
+</svg>

@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Multipantalla TV</title>
+  <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -24,6 +25,7 @@
           <button type="button" data-count="8">8</button>
         </div>
         <button type="button" id="focusBtn" class="toggle" aria-pressed="false" title="Modo foco (F)">Modo foco</button>
+        <button type="button" id="fsBtn" class="toggle" aria-pressed="false" title="Pantalla completa de toda la rejilla (P)">Pantalla completa</button>
       </section>
 
       <section>
@@ -50,17 +52,22 @@
 
   <dialog id="info" aria-labelledby="infoTitle">
     <div class="dlg-body">
-      <h2 id="infoTitle">Información</h2>
+      <div class="dlg-head">
+        <img class="logo" src="logo.svg" alt="" width="56" height="56">
+        <h2 id="infoTitle">Información</h2>
+      </div>
       <ul>
         <li><b>Pantallas:</b> elige 4, 6 u 8. Se reparten en dos filas, de izquierda a derecha.</li>
         <li><b>Foco:</b> haz clic en una pantalla (o pulsa 1–8). La que tiene foco lleva un halo suave, es la que recibe la cadena que elijas y la única con sonido.</li>
-        <li><b>Cadenas:</b> pulsa una de la lista para ponerla en la pantalla con foco (el foco pasa a la siguiente pantalla; en modo foco se queda en la grande), o arrástrala sobre la pantalla que quieras.</li>
+        <li><b>Cadenas:</b> pulsa una de la lista y se pone en la pantalla con foco: empieza a sonar y el foco se queda en ese hueco. También puedes arrastrarla sobre cualquier pantalla.</li>
         <li><b>Volumen:</b> el control del menú ajusta el sonido de la pantalla con foco; las demás van en silencio. El navegador no da sonido hasta que haces el primer clic en la página.</li>
         <li><b>Modo foco:</b> la pantalla con foco se ve grande y las demás alrededor. Si pulsas una pequeña, pasa a ser la grande y la grande ocupa su sitio. En pantallas estrechas (móvil) se ignora.</li>
-        <li><b>Menú:</b> se oculta con ⟩ y vuelve con la pestaña del borde derecho.</li>
+        <li><b>Pantalla completa:</b> el botón del menú pone toda la rejilla a pantalla completa (Esc para salir). El ⛶ de cada pantalla amplía solo esa.</li>
+        <li><b>Menú:</b> se oculta con ⟩ y vuelve con la pestaña de arriba a la derecha.</li>
         <li><b>En cada pantalla</b> (al pasar el ratón): ⛶ pantalla completa y ✕ quitar la cadena.</li>
+        <li><b>YouTube:</b> si una cadena de YouTube no carga, la pantalla indica el motivo y ofrece abrirla en YouTube.</li>
       </ul>
-      <p class="keys"><b>Atajos:</b> 1–8 seleccionar · F modo foco · M silenciar · H ocultar/mostrar menú</p>
+      <p class="keys"><b>Atajos:</b> 1–8 seleccionar · F modo foco · P pantalla completa · M silenciar · H ocultar/mostrar menú</p>
       <form method="dialog"><button class="toggle close">Cerrar</button></form>
     </div>
   </dialog>
