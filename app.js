@@ -455,7 +455,7 @@
       if (!playable) {
         const t = document.createElement("span");
         t.className = "tag";
-        t.textContent = "pronto";
+        t.textContent = "pendiente";
         b.appendChild(t);
       } else {
         if (ch.note) {

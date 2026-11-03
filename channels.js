@@ -52,15 +52,14 @@ const CHANNELS = [
   {
     // El canal no permite incrustar este directo: la pantalla ofrece abrirlo en YouTube
     id: "ser",
-    name: "SER · vídeo",
+    name: "SER · Video YouTube",
     type: "youtube",
     channelId: "UCQ2Fej5pr1ipVeBWTX8Sc_Q",
-    note: "solo en YouTube",
   },
   {
     // Solo audio (StreamTheWorld). Sin probar desde aquí: si no suena, se borra esta entrada
     id: "ser-radio",
-    name: "SER · radio",
+    name: "SER · Radio",
     type: "audio",
     url: "https://playerservices.streamtheworld.com/api/livestream-redirect/CADENASER.mp3",
   },
