@@ -47,6 +47,10 @@ html, body {
   transition: box-shadow .15s;
 }
 .screen[hidden] { display: none; }
+.screen[draggable="true"] { cursor: grab; }
+.screen.dragging { opacity: .5; }
+/* Mientras se arrastra, los iframes no se tragan el "soltar" */
+.app.is-dragging .media iframe { pointer-events: none; }
 
 /* Halo suave de la pantalla con foco */
 .screen.active {
@@ -92,8 +96,41 @@ html, body {
 .empty small { font-size: 12px; opacity: .8; }
 .screen.is-empty .empty { display: flex; }
 
+/* Cadenas de solo audio: ecualizador de adorno */
+.radio {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  pointer-events: none;
+}
+.screen.is-audio .radio { display: flex; }
+.radio .eq { display: flex; align-items: flex-end; gap: 6px; height: 44px; }
+.radio .eq i {
+  width: 8px;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transform-origin: bottom;
+  animation: eq 1s ease-in-out infinite;
+}
+.radio .eq i:nth-child(2) { background: #7ee787; animation-delay: -.35s; }
+.radio .eq i:nth-child(3) { background: #f2cc60; animation-delay: -.7s; }
+.radio .eq i:nth-child(4) { background: #bc8cff; animation-delay: -.2s; }
+.radio .eq i:nth-child(5) { background: #ff7b72; animation-delay: -.55s; }
+.radio-name { font-size: 15px; font-weight: 600; color: var(--muted); }
+@keyframes eq {
+  0%, 100% { transform: scaleY(.2); }
+  50% { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) { .radio .eq i { animation: none; transform: scaleY(.6); } }
+
 .bar {
   position: absolute;
+  z-index: 2; /* por encima del aviso de error, para poder quitar la cadena */
   top: 0; left: 0; right: 0;
   display: flex;
   align-items: center;
@@ -105,10 +142,12 @@ html, body {
   pointer-events: none;
 }
 .screen:hover .bar,
-.screen.active .bar { opacity: 1; }
+.screen.active .bar,
+.screen.has-error .bar { opacity: 1; }
 .screen.is-empty .bar .actions { display: none; }
 
 .num {
+  pointer-events: auto; /* el número y el nombre sirven de asa para arrastrar */
   display: grid;
   place-items: center;
   width: 20px; height: 20px;
@@ -117,7 +156,7 @@ html, body {
   font-size: 12px;
   font-weight: 600;
 }
-.name { flex: 1; font-weight: 600; text-shadow: 0 1px 2px #000; }
+.name { flex: 1; font-weight: 600; text-shadow: 0 1px 2px #000; pointer-events: auto; }
 .aud { font-size: 13px; text-shadow: 0 1px 2px #000; }
 .actions { display: flex; gap: 4px; pointer-events: auto; }
 .actions button {
@@ -133,6 +172,7 @@ html, body {
 
 .err {
   position: absolute;
+  z-index: 1;
   inset: 0;
   display: none;
   flex-direction: column;

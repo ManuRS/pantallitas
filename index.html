@@ -3,33 +3,33 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pantallias</title>
+  <title>Pantallitas</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="app" id="app">
-    <main id="wall" class="wall" aria-label="Pantallias"></main>
+    <main id="wall" class="wall" aria-label="Pantallitas"></main>
 
     <aside class="panel" id="panel">
       <header class="panel-head">
-        <h1>Pantallias</h1>
+        <h1>Pantallitas</h1>
         <button type="button" id="hideMenu" class="icon-btn" title="Esconder el menú (H)" aria-label="Esconder el menú">⟩</button>
       </header>
 
       <section>
-        <h2>¿Cuántas pantallias?</h2>
+        <h2>¿Cuántas pantallitas?</h2>
         <div id="count" class="seg" role="group" aria-label="Número de pantallas">
           <button type="button" data-count="4">4</button>
           <button type="button" data-count="6">6</button>
           <button type="button" data-count="8">8</button>
         </div>
         <button type="button" id="focusBtn" class="toggle" aria-pressed="false" title="Una grande y las demás alrededor, mirando (F)">Modo foco</button>
-        <button type="button" id="fsBtn" class="toggle" aria-pressed="false" title="Todo Pantallias a pantalla completa, menú incluido (P)">Pantalla completa</button>
+        <button type="button" id="fsBtn" class="toggle" aria-pressed="false" title="Todo Pantallitas a pantalla completa, menú incluido (P)">Pantalla completa</button>
       </section>
 
       <section>
-        <h2>Volumen <small>· pantallia con foco</small></h2>
+        <h2>Volumen <small>· pantallita con foco</small></h2>
         <div class="vol">
           <button type="button" id="muteBtn" class="icon-btn" title="Silenciar (M)" aria-label="Silenciar" aria-pressed="false">🔊</button>
           <input type="range" id="volume" min="0" max="100" step="1" aria-label="Volumen">
@@ -55,21 +55,22 @@
           <img class="logo" src="logo.svg" alt="" width="56" height="56">
           <div>
             <h2 id="infoTitle">Información</h2>
-            <p class="tagline">Pantallias: todas las teles a la vez, sin pelearte por el mando.</p>
+            <p class="tagline">Pantallitas: todas las teles a la vez, sin pelearte por el mando.</p>
           </div>
         </div>
         <ul>
-          <li><b>Pantallias:</b> elige 4, 6 u 8. Se reparten en dos filas, de izquierda a derecha, sin líos.</li>
-          <li><b>Foco:</b> haz clic en una pantallia (o pulsa 1–8) y se queda con un halo suave: esa es la que manda. Recibe la cadena que elijas y es la única que suena; las demás, calladitas.</li>
-          <li><b>Cadenas:</b> pulsa una y salta a la pantallia con foco: empieza a sonar y el foco se queda donde está. También vale arrastrarla a la pantallia que quieras.</li>
-          <li><b>Volumen:</b> el control del menú toca el volumen de la pantallia con foco. El navegador no deja sonar nada hasta que haces tu primer clic en la página; es muy suyo.</li>
-          <li><b>Modo foco:</b> una pantallia enorme y las demás alrededor, mirando. Si pulsas una pequeña, se pide el sitio de la grande y la grande ocupa el suyo. En pantallas estrechas (móvil) no hace nada.</li>
-          <li><b>Pantalla completa:</b> el botón del menú (o <b>P</b>) estira todo Pantallias, menú incluido, que puedes sacar y esconder igual que siempre (H o la pestañita). Esc para salir. El ⛶ de cada pantallia amplía solo esa.</li>
+          <li><b>Pantallitas:</b> elige 4, 6 u 8. Se reparten en dos filas, de izquierda a derecha, sin líos.</li>
+          <li><b>Foco:</b> haz clic en una pantallita (o pulsa 1–8) y se queda con un halo suave: esa es la que manda. Recibe la cadena que elijas y es la única que suena; las demás, calladitas.</li>
+          <li><b>Cadenas:</b> pulsa una y salta a la pantallita con foco: empieza a sonar y el foco se queda donde está. También vale arrastrarla desde la lista a la pantallita que quieras.</li>
+          <li><b>Mover:</b> agarra una pantallita (por la imagen o por su barra de arriba) y suéltala encima de otra: se cambian de sitio. Los dos streams se recargan un instante. En modo foco, lo que caiga en la grande se convierte en la protagonista.</li>
+          <li><b>Volumen:</b> el control del menú toca el volumen de la pantallita con foco. El navegador no deja sonar nada hasta que haces tu primer clic en la página; es muy suyo.</li>
+          <li><b>Modo foco:</b> una pantallita enorme y las demás alrededor, mirando. Si pulsas una pequeña, se pide el sitio de la grande y la grande ocupa el suyo. En pantallas estrechas (móvil) no hace nada.</li>
+          <li><b>Pantalla completa:</b> el botón del menú (o <b>P</b>) estira todo Pantallitas, menú incluido, que puedes sacar y esconder igual que siempre (H o la pestañita). Esc para salir. El ⛶ de cada pantallita amplía solo esa.</li>
           <li><b>Menú:</b> se esconde con ⟩ y vuelve con la pestañita de arriba a la derecha.</li>
-          <li><b>En cada pantallia</b> (al pasar el ratón): ⛶ pantalla completa y ✕ quitar la cadena.</li>
-          <li><b>YouTube:</b> si una cadena de YouTube no carga, la pantallia te cuenta por qué y te deja abrirla en YouTube. Algunos canales (la SER, por ejemplo) no permiten incrustar su directo y ahí no hay truco que valga.</li>
+          <li><b>En cada pantallita</b> (al pasar el ratón): ⛶ pantalla completa y ✕ quitar la cadena.</li>
+          <li><b>YouTube y radio:</b> si una cadena de YouTube no carga, la pantallita te cuenta por qué y te deja abrirla en YouTube. La SER no permite incrustar su directo en vídeo, así que hay una «SER · radio» que solo trae el audio (con un ecualizador de adorno).</li>
         </ul>
-        <p class="keys"><b>Atajos:</b> 1–8 elegir pantallia · F foco · P pantalla completa · M silencio · H menú</p>
+        <p class="keys"><b>Atajos:</b> 1–8 elegir pantallita · F foco · P pantalla completa · M silencio · H menú</p>
         <form method="dialog"><button class="toggle close">Entendido</button></form>
       </div>
     </dialog>

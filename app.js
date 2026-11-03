@@ -6,6 +6,8 @@
   const KEY = "tv-wall-v2";
   const OLD_KEY = "tv-wall-v1"; // se aprovecha el estado de la v1 si existe
   const DEFAULT_ERR = "Esta cadena se ha puesto tonta y no arranca";
+  const SWAP_MIME = "application/x-pantallitas-swap";
+  let dragFrom = null; // índice de la pantallita que se está arrastrando
 
   const byId = Object.fromEntries(CHANNELS.map((c) => [c.id, c]));
   const isPlayable = (c) => !!(c.url || c.channelId);
@@ -65,6 +67,7 @@
     el.innerHTML = `
       <div class="media"></div>
       <div class="empty">Pantalla ${i + 1}<small>Vacía: échale una cadena</small></div>
+      <div class="radio" aria-hidden="true"><div class="eq"><i></i><i></i><i></i><i></i><i></i></div><span class="radio-name"></span></div>
       <div class="bar">
         <span class="num">${i + 1}</span>
         <span class="name"></span>
@@ -80,6 +83,7 @@
       i, el,
       media: el.querySelector(".media"),
       nameEl: el.querySelector(".name"),
+      radioName: el.querySelector(".radio-name"),
       audEl: el.querySelector(".aud"),
       errMsg: el.querySelector(".err-msg"),
       errLink: el.querySelector(".err-link"),
@@ -96,12 +100,37 @@
     el.querySelector(".b-clear").addEventListener("click", (e) => { e.stopPropagation(); assign(i, null); });
     el.querySelector(".err button").addEventListener("click", (e) => { e.stopPropagation(); s.retries = 0; start(s); });
 
-    // Arrastrar una cadena desde la lista
-    el.addEventListener("dragover", (e) => { e.preventDefault(); el.classList.add("dragover"); });
+    // Mover pantallitas: se agarra una con cadena y se suelta sobre otra (se intercambian)
+    el.addEventListener("dragstart", (e) => {
+      if (!state.slots[i]) { e.preventDefault(); return; }
+      dragFrom = i;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData(SWAP_MIME, String(i));
+      el.classList.add("dragging");
+      app.classList.add("is-dragging"); // los iframes de YouTube no deben tragarse el "soltar"
+    });
+    el.addEventListener("dragend", () => {
+      dragFrom = null;
+      app.classList.remove("is-dragging");
+      screens.forEach((x) => x.el.classList.remove("dragging", "dragover"));
+    });
+
+    // Soltar: otra pantallita (intercambio) o una cadena arrastrada desde la lista
+    el.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = dragFrom !== null ? "move" : "copy";
+      el.classList.add("dragover");
+    });
     el.addEventListener("dragleave", () => el.classList.remove("dragover"));
     el.addEventListener("drop", (e) => {
       e.preventDefault();
       el.classList.remove("dragover");
+      if (dragFrom !== null) {
+        const from = dragFrom;
+        dragFrom = null;
+        if (from !== i) swap(from, i);
+        return;
+      }
       const id = e.dataTransfer.getData("text/plain");
       if (byId[id] && isPlayable(byId[id])) { assign(i, id); setActive(i); }
     });
@@ -114,11 +143,11 @@
   function stop(s) {
     if (s.hls) { s.hls.destroy(); s.hls = null; }
     if (s.node) {
-      if (s.node.tagName === "VIDEO") { s.node.pause(); s.node.removeAttribute("src"); s.node.load(); }
+      if (s.node.tagName === "VIDEO" || s.node.tagName === "AUDIO") { s.node.pause(); s.node.removeAttribute("src"); s.node.load(); }
       s.node = null;
     }
     s.media.innerHTML = "";
-    s.el.classList.remove("has-error");
+    s.el.classList.remove("has-error", "is-audio");
   }
 
   function showError(s, msg) {
@@ -154,7 +183,9 @@
     stop(s);
     const ch = byId[state.slots[s.i]];
     s.el.classList.toggle("is-empty", !ch);
+    s.el.draggable = !!ch; // solo se pueden mover las que tienen cadena
     s.nameEl.textContent = ch ? ch.name : "";
+    s.radioName.textContent = ch ? ch.name : "";
     s.errMsg.textContent = DEFAULT_ERR;
     s.errLink.hidden = !(ch && ch.type === "youtube");
     if (ch && ch.type === "youtube") s.errLink.href = "https://www.youtube.com/channel/" + ch.channelId + "/live";
@@ -177,6 +208,18 @@
       });
       s.media.appendChild(f);
       s.node = f;
+    } else if (ch.type === "audio") {
+      // Solo audio: se ve un ecualizador de adorno
+      const a = document.createElement("audio");
+      a.muted = true;
+      a.autoplay = true;
+      a.preload = "none";
+      a.addEventListener("error", () => { if (s.node === a) showError(s, "La radio no arranca (¿el stream ha cambiado?)."); });
+      a.src = ch.url;
+      s.media.appendChild(a);
+      s.node = a;
+      s.el.classList.add("is-audio");
+      a.play().catch(() => {});
     } else {
       const v = document.createElement("video");
       v.muted = true;
@@ -222,7 +265,7 @@
       s.audEl.textContent = focused && s.node ? (audible ? "🔊" : "🔇") : "";
       if (!s.node) return;
 
-      if (s.node.tagName === "VIDEO") {
+      if (s.node.tagName === "VIDEO" || s.node.tagName === "AUDIO") {
         s.node.volume = vol;
         s.node.muted = !audible;
         if (audible) s.node.play().catch(() => {});
@@ -279,6 +322,18 @@
     state.slots[i] = id;
     screens[i].retries = 0;
     start(screens[i]);
+    renderList();
+    save();
+  }
+
+  // Intercambia las cadenas de dos pantallitas. El foco se queda en su casilla
+  // (como al elegir una cadena); los dos streams se recargan un instante.
+  function swap(a, b) {
+    [state.slots[a], state.slots[b]] = [state.slots[b], state.slots[a]];
+    [a, b].forEach((k) => {
+      screens[k].retries = 0;
+      start(screens[k]);
+    });
     renderList();
     save();
   }
@@ -387,6 +442,12 @@
         t.textContent = "pronto";
         b.appendChild(t);
       } else {
+        if (ch.note) {
+          const t = document.createElement("span");
+          t.className = "tag";
+          t.textContent = ch.note;
+          b.appendChild(t);
+        }
         const badges = document.createElement("span");
         badges.className = "badges";
         for (let i = 0; i < state.count; i++) {
