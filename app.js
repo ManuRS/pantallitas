@@ -2,7 +2,7 @@
   "use strict";
 
   const MAX = 8;
-  const COUNTS = [4, 6, 8];
+  const COUNTS = [1, 4, 6, 8];
   const KEY = "tv-wall-v3";
   const OLD_KEYS = ["tv-wall-v2", "tv-wall-v1"]; // se aprovecha el estado de versiones anteriores
   const DEFAULT_ERR = "Esta cadena se ha puesto tonta y no arranca";
@@ -425,7 +425,9 @@
   }
 
   function layout() {
-    wall.style.setProperty("--cols", state.count / 2);
+    wall.style.setProperty("--cols", Math.ceil(state.count / 2));
+    wall.style.setProperty("--rows", state.count === 1 ? 1 : 2);
+    wall.classList.toggle("single", state.count === 1);
     screens.forEach((s) => {
       const visible = s.i < state.count;
       s.el.hidden = !visible;
@@ -488,17 +490,27 @@
   }
 
   function placeFocus() {
-    wall.classList.toggle("focus", state.focus);
+    const on = state.focus && state.count > 1; // con una sola pantallita no hay nada que enfocar
+    wall.classList.toggle("focus", on);
     focusBtn.setAttribute("aria-pressed", String(state.focus));
-    if (!state.focus) {
-      screens.forEach((s) => s.el.style.removeProperty("--area"));
+    if (!on) {
+      screens.forEach((s) => {
+        s.el.style.removeProperty("--area");
+        s.el.style.removeProperty("--ord");
+        s.el.classList.remove("is-big");
+      });
       return;
     }
     keepRadioOutOfBig();
     const g = focusGeometry(state.count);
     wall.style.setProperty("--f-cols", g.cols);
     wall.style.setProperty("--f-rows", g.rows);
-    state.order.forEach((idx, k) => screens[idx].el.style.setProperty("--area", g.areas[k]));
+    state.order.forEach((idx, k) => {
+      const el = screens[idx].el;
+      el.style.setProperty("--area", g.areas[k]); // escritorio: sitio en la rejilla
+      el.style.setProperty("--ord", k);           // móvil: orden (la grande va primero)
+      el.classList.toggle("is-big", k === 0);
+    });
   }
 
   function setFocusMode(on) {

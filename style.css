@@ -32,7 +32,7 @@ html, body {
   --cols: 3;
   display: grid;
   grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr)); /* dos líneas */
+  grid-template-rows: repeat(var(--rows, 2), minmax(0, 1fr)); /* dos líneas (una si hay una sola pantallita) */
   gap: 6px;
   padding: 6px;
   min-height: 0;
@@ -283,7 +283,7 @@ html, body {
 
 .seg {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
@@ -396,7 +396,11 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
     grid-template-rows: none;
     grid-auto-rows: auto;
   }
+  .wall.single { grid-template-columns: minmax(0, 1fr); }
   .screen { aspect-ratio: 16 / 9; }
+  /* Modo foco en móvil: la grande arriba a todo el ancho y el resto debajo, de dos en dos */
+  .wall.focus .screen { order: var(--ord); }
+  .wall.focus .screen.is-big { grid-column: 1 / -1; }
   .panel { border-left: 0; border-top: 1px solid var(--line); }
   .bar { opacity: 1; }
 }
