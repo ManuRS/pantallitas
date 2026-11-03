@@ -8,8 +8,7 @@
   const DEFAULT_ERR = "Esta cadena se ha puesto tonta y no arranca";
   const SWAP_MIME = "application/x-pantallitas-swap";
   const ATRES_ORIGIN = "https://www.atresplayer.com";
-  const HINT_ATRES = "Pulsa «Directo» dentro del reproductor.";
-  const HINT_NO_BRIDGE = HINT_ATRES + " Sin el puente de sonido, solo se mantiene en marcha la que tiene el foco.";
+  const HINT_NO_BRIDGE = "Sin el puente de sonido, solo se mantiene en marcha la que tiene el foco."; // con puente no se avisa de nada
   const BRIDGE_WAIT_MS = 6000; // cuánto se espera al puente antes de darlo por no instalado
   let bridgeKnown = "unknown"; // "yes" si algún reproductor de Atresplayer ha avisado, "no" si ninguno lo hizo a tiempo
   let dragFrom = null; // índice de la pantallita que se está arrastrando
@@ -106,6 +105,7 @@
         <span class="name"></span>
         <span class="aud" aria-hidden="true"></span>
         <div class="actions">
+          <button type="button" class="b-touch" aria-pressed="false">🖱</button>
           <button type="button" class="b-full" title="Pantalla completa">⛶</button>
           <button type="button" class="b-clear" title="Quitar cadena">✕</button>
         </div>
@@ -122,6 +122,7 @@
       audEl: el.querySelector(".aud"),
       errMsg: el.querySelector(".err-msg"),
       errLink: el.querySelector(".err-link"),
+      touchBtn: el.querySelector(".b-touch"),
       node: null,   // <video> o <iframe>
       hls: null,
       retries: 0,
@@ -133,6 +134,7 @@
       if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
     });
     el.querySelector(".b-clear").addEventListener("click", (e) => { e.stopPropagation(); assign(i, null); });
+    s.touchBtn.addEventListener("click", (e) => { e.stopPropagation(); el.classList.toggle("no-touch"); syncTouch(s); });
     el.querySelector(".err button").addEventListener("click", (e) => { e.stopPropagation(); s.retries = 0; start(s); });
 
     // Mover pantallitas: se agarra una con cadena y se suelta sobre otra (se intercambian)
@@ -183,10 +185,21 @@
     }
     s.media.innerHTML = "";
     s.bridged = false;
-    s.el.classList.remove("has-error", "is-audio", "is-atres", "is-suspended");
+    s.el.classList.remove("has-error", "is-audio", "is-atres", "is-suspended", "no-touch");
+    syncTouch(s);
   }
 
-  const updateHint = (s) => { s.hintEl.textContent = s.bridged ? HINT_ATRES : HINT_NO_BRIDGE; };
+  const updateHint = (s) => { s.hintEl.textContent = s.bridged ? "" : HINT_NO_BRIDGE; };
+
+  // Los reproductores incrustados (Atresplayer) enseñan sus controles mientras les llega el ratón. Este botón hace
+  // que el ratón no les llegue (se ocultan) o que vuelva a llegarles (aceptar términos, «Directo»...)
+  function syncTouch(s) {
+    const off = s.el.classList.contains("no-touch");
+    s.touchBtn.setAttribute("aria-pressed", String(off));
+    s.touchBtn.title = off
+      ? "Controles del reproductor ocultos. Pulsa para volver a usarlos (aceptar términos, «Directo»…)"
+      : "Ocultar los controles del reproductor";
+  }
 
   function showError(s, msg) {
     s.errMsg.textContent = msg || DEFAULT_ERR;
