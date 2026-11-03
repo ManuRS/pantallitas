@@ -398,3 +398,4 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
   .panel { border-left: 0; border-top: 1px solid var(--line); }
   .bar { opacity: 1; }
 }
+.dlg-body a { color: var(--accent); }

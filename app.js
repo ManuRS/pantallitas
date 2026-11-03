@@ -7,6 +7,9 @@
   const OLD_KEYS = ["tv-wall-v2", "tv-wall-v1"]; // se aprovecha el estado de versiones anteriores
   const DEFAULT_ERR = "Esta cadena se ha puesto tonta y no arranca";
   const SWAP_MIME = "application/x-pantallitas-swap";
+  const ATRES_ORIGIN = "https://www.atresplayer.com";
+  const HINT_ATRES = "Pulsa «Directo» dentro del reproductor.";
+  const HINT_NO_BRIDGE = HINT_ATRES + " Sin el puente de sonido, su volumen no se controla desde aquí.";
   let dragFrom = null; // índice de la pantallita que se está arrastrando
 
   const byId = Object.fromEntries(CHANNELS.map((c) => [c.id, c]));
@@ -72,7 +75,7 @@
     el.innerHTML = `
       <div class="media"></div>
       <div class="empty">Pantalla ${i + 1}<small>Vacía: échale una cadena</small></div>
-      <div class="hint" aria-hidden="true">Pulsa «Directo» dentro del reproductor. Aquí no funciona el volumen de Pantallitas.</div>
+      <div class="hint" aria-hidden="true"></div>
       <div class="radio" aria-hidden="true"><div class="eq"><i></i><i></i><i></i><i></i><i></i></div><span class="radio-name"></span></div>
       <div class="bar">
         <span class="num">${i + 1}</span>
@@ -89,6 +92,8 @@
       i, el,
       media: el.querySelector(".media"),
       nameEl: el.querySelector(".name"),
+      hintEl: el.querySelector(".hint"),
+      bridged: false, // ¿está el puente de sonido dentro del reproductor de Atresplayer?
       radioName: el.querySelector(".radio-name"),
       audEl: el.querySelector(".aud"),
       errMsg: el.querySelector(".err-msg"),
@@ -153,8 +158,11 @@
       s.node = null;
     }
     s.media.innerHTML = "";
+    s.bridged = false;
     s.el.classList.remove("has-error", "is-audio", "is-atres");
   }
+
+  const updateHint = (s) => { s.hintEl.textContent = s.bridged ? HINT_ATRES : HINT_NO_BRIDGE; };
 
   function showError(s, msg) {
     s.errMsg.textContent = msg || DEFAULT_ERR;
@@ -177,6 +185,16 @@
   }
 
   window.addEventListener("message", (e) => {
+    if (e.origin === ATRES_ORIGIN) { // el puente de sonido avisa desde dentro del reproductor de Atresplayer
+      const s = screens.find((x) => x.node && x.node.contentWindow === e.source);
+      const d = e.data;
+      if (s && d && typeof d === "object" && d.source === "pantallitas-bridge" && d.type === "ready") {
+        s.bridged = true;
+        updateHint(s);
+        applyAudio();
+      }
+      return;
+    }
     if (!/^https:\/\/(www\.)?youtube(-nocookie)?\.com$/.test(e.origin)) return;
     const s = screens.find((x) => x.node && x.node.contentWindow === e.source);
     if (!s) return;
@@ -220,10 +238,18 @@
       const f = document.createElement("iframe");
       f.title = ch.name;
       f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
-      f.src = "https://www.atresplayer.com/embed/live/" + encodeURIComponent(ch.slug) + "/";
+      f.src = ATRES_ORIGIN + "/embed/live/" + encodeURIComponent(ch.slug) + "/";
+      // el puente (si está instalado) tarda en arrancar: se le manda el sonido varias veces
+      f.addEventListener("load", () => {
+        const sync = () => { if (s.node === f) applyAudio(); };
+        sync();
+        setTimeout(sync, 1500);
+        setTimeout(sync, 4000);
+      });
       s.media.appendChild(f);
       s.node = f;
       s.el.classList.add("is-atres");
+      updateHint(s);
     } else if (ch.type === "audio") {
       // Solo audio: se ve un ecualizador de adorno
       const a = document.createElement("audio");
@@ -278,9 +304,17 @@
     screens.forEach((s) => {
       const focused = s.i === state.active && s.i < state.count;
       const audible = focused && state.interacted && !state.muted && vol > 0;
-      const ownSound = s.el.classList.contains("is-atres"); // su sonido no lo controlamos: sin icono
-      s.audEl.textContent = focused && s.node && !ownSound ? (audible ? "🔊" : "🔇") : "";
-      if (!s.node || ownSound) return;
+      const atres = s.el.classList.contains("is-atres");
+      // Atresplayer: solo se sabe y se controla su sonido si el puente está dentro del reproductor
+      s.audEl.textContent = focused && s.node && (!atres || s.bridged) ? (audible ? "🔊" : "🔇") : "";
+      if (!s.node) return;
+
+      if (atres) {
+        if (s.node.contentWindow) {
+          s.node.contentWindow.postMessage({ source: "pantallitas", type: "audio", muted: !audible, volume: vol }, ATRES_ORIGIN);
+        }
+        return;
+      }
 
       if (s.node.tagName === "VIDEO" || s.node.tagName === "AUDIO") {
         s.node.volume = vol;
@@ -316,6 +350,8 @@
     save();
   });
   muteBtn.addEventListener("click", toggleMute);
+  // el puente de Atresplayer puede arrancar tarde o el reproductor recrear su <video>: se repite la orden
+  setInterval(() => { if (screens.some((s) => s.el.classList.contains("is-atres"))) applyAudio(); }, 3000);
 
   // Primer gesto del usuario: a partir de ahí el navegador permite el sonido
   const markInteracted = () => {
