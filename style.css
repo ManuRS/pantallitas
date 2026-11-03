@@ -7,7 +7,11 @@
   --accent: #4da3ff;
   --accent-rgb: 77, 163, 255;
   --warn: #ff7b72;
+  --thumb: #3a4152;
+  color-scheme: dark; /* barras de desplazamiento y controles nativos en oscuro */
 }
+
+* { scrollbar-width: thin; scrollbar-color: var(--thumb) transparent; }
 
 * { box-sizing: border-box; }
 
@@ -148,6 +152,13 @@ html, body {
 .screen.is-atres .hint { display: block; }
 .screen.is-atres:hover .hint,
 .screen.is-atres.active .hint { opacity: 1; }
+.screen.is-atres .hint:empty { display: none; }
+
+/* Botón para quitar los controles de un reproductor incrustado (solo Atresplayer) */
+.actions .b-touch { display: none; }
+.screen.is-atres .actions .b-touch { display: inline-block; }
+.actions .b-touch[aria-pressed="true"] { background: var(--accent); color: #06121f; }
+.screen.no-touch .media iframe { pointer-events: none; }
 
 .bar {
   position: absolute;
@@ -323,7 +334,16 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 
-.channels { flex: 1; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 6px; }
+.channels {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding-right: 8px;        /* la barra de desplazamiento no pisa los botones */
+  scrollbar-gutter: stable;
+}
 .channels details { display: grid; gap: 6px; }
 .channels summary {
   padding: 6px 4px;
