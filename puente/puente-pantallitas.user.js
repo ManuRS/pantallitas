@@ -59,6 +59,6 @@
     aplicar();
   });
 
-  // «saquí estoy»: Pantallitas lo usa para saber que el puente está y mandarle el sonido
+  // «aü estoy»: Pantallitas lo usa para saber que el puente está y mandarle el sonido
   window.parent.postMessage({ source: 'pantallitas-bridge', type: 'ready', version: 1 }, destino);
 }());
