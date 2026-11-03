@@ -43,7 +43,7 @@ la pantallita y la barra de arriba muestra 🔊 o 🔇. Si instalas el puente co
 - No lee nada de la página, de tu cuenta ni de otras pestañas.
 - No pide permisos (el `manifest.json` no declara `permissions`).
 - Solo se ejecuta en `https://www.atresplayer.com/embed/live/*` y solo obedece a Pantallitas
-  (`https://manurs.github.io` o `localhost`); si lo incrusta otra web, no hace nada.
+  (`https://manurs.github.io`, `https://pantallitas.pages.dev` o `localhost`); si lo incrusta otra web, no hace nada.
 
 ## Cómo funciona
 
