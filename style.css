@@ -82,7 +82,7 @@ html, body {
 /* El iframe de YouTube se traga los clics: solo es interactivo cuando tiene foco */
 .screen:not(.active) .media iframe { pointer-events: none; }
 
-.empty {
+.empty, .paused {
   position: absolute;
   inset: 0;
   display: none;
@@ -90,11 +90,13 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 4px;
+  padding: 0 12px;
+  text-align: center;
   color: var(--muted);
   font-size: 15px;
 }
-.empty small { font-size: 12px; opacity: .8; }
-.screen.is-empty .empty { display: flex; }
+.empty small, .paused small { font-size: 12px; opacity: .8; }
+.screen.is-empty .empty, .screen.is-suspended .paused { display: flex; }
 
 /* Cadenas de solo audio: ecualizador de adorno */
 .radio {
@@ -399,3 +401,4 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
   .bar { opacity: 1; }
 }
 .dlg-body a { color: var(--accent); }
+.dlg-body code { padding: 0 4px; border-radius: 4px; background: var(--bg); font-size: 12.5px; }

@@ -9,7 +9,9 @@
   const SWAP_MIME = "application/x-pantallitas-swap";
   const ATRES_ORIGIN = "https://www.atresplayer.com";
   const HINT_ATRES = "Pulsa «Directo» dentro del reproductor.";
-  const HINT_NO_BRIDGE = HINT_ATRES + " Sin el puente de sonido, su volumen no se controla desde aquí.";
+  const HINT_NO_BRIDGE = HINT_ATRES + " Sin el puente de sonido, solo se mantiene en marcha la que tiene el foco.";
+  const BRIDGE_WAIT_MS = 6000; // cuánto se espera al puente antes de darlo por no instalado
+  let bridgeKnown = "unknown"; // "yes" si algún reproductor de Atresplayer ha avisado, "no" si ninguno lo hizo a tiempo
   let dragFrom = null; // índice de la pantallita que se está arrastrando
 
   const byId = Object.fromEntries(CHANNELS.map((c) => [c.id, c]));
@@ -76,6 +78,7 @@
       <div class="media"></div>
       <div class="empty">Pantalla ${i + 1}<small>Vacía: échale una cadena</small></div>
       <div class="hint" aria-hidden="true"></div>
+      <div class="paused">En pausa<small>Pulsa para reanudar (sin el puente de sonido, solo una a la vez)</small></div>
       <div class="radio" aria-hidden="true"><div class="eq"><i></i><i></i><i></i><i></i><i></i></div><span class="radio-name"></span></div>
       <div class="bar">
         <span class="num">${i + 1}</span>
@@ -159,7 +162,7 @@
     }
     s.media.innerHTML = "";
     s.bridged = false;
-    s.el.classList.remove("has-error", "is-audio", "is-atres");
+    s.el.classList.remove("has-error", "is-audio", "is-atres", "is-suspended");
   }
 
   const updateHint = (s) => { s.hintEl.textContent = s.bridged ? HINT_ATRES : HINT_NO_BRIDGE; };
@@ -190,7 +193,9 @@
       const d = e.data;
       if (s && d && typeof d === "object" && d.source === "pantallitas-bridge" && d.type === "ready") {
         s.bridged = true;
+        bridgeKnown = "yes";
         updateHint(s);
+        syncAtres(); // con puente no hace falta pausar nada: se reanuda lo que estuviera en pausa
         applyAudio();
       }
       return;
@@ -214,6 +219,13 @@
     s.errLink.hidden = !(ch && ch.type === "youtube");
     if (ch && ch.type === "youtube") s.errLink.href = "https://www.youtube.com/channel/" + ch.channelId + "/live";
     if (!ch) { applyAudio(); return; }
+
+    // Atresplayer sin puente: no se puede silenciar, así que solo corre la pantallita con foco
+    if (ch.type === "atres" && bridgeKnown === "no" && s.i !== state.active) {
+      s.el.classList.add("is-suspended");
+      applyAudio();
+      return;
+    }
 
     if (ch.type === "youtube") {
       const f = document.createElement("iframe");
@@ -245,6 +257,12 @@
         sync();
         setTimeout(sync, 1500);
         setTimeout(sync, 4000);
+        setTimeout(() => { // ¿ha avisado el puente? Si no, se asume que no está instalado
+          if (s.node === f && !s.bridged && bridgeKnown !== "yes") {
+            bridgeKnown = "no";
+            syncAtres();
+          }
+        }, BRIDGE_WAIT_MS);
       });
       s.media.appendChild(f);
       s.node = f;
@@ -362,9 +380,22 @@
   ["pointerdown", "keydown"].forEach((ev) => document.addEventListener(ev, markInteracted, true));
 
   // ---------- Foco, asignación y rejilla ----------
+  // Sin el puente, de las pantallitas de Atresplayer solo se mantiene en marcha la que tiene el foco;
+  // las demás se pausan (se quita el iframe) y se reanudan al enfocarlas
+  function syncAtres() {
+    screens.forEach((s) => {
+      const ch = byId[state.slots[s.i]];
+      if (!ch || ch.type !== "atres" || s.i >= state.count) return;
+      const suspended = s.el.classList.contains("is-suspended");
+      if (suspended && (s.i === state.active || bridgeKnown === "yes")) start(s);
+      else if (!suspended && bridgeKnown === "no" && s.i !== state.active) start(s); // start() la pausa
+    });
+  }
+
   function setActive(i) {
     if (i < 0 || i >= state.count) return;
     state.active = i;
+    syncAtres();
     if (state.focus && !isAudioSlot(i)) promote(i); // una radio no se pone en grande: no tiene imagen
     screens.forEach((s) => s.el.classList.toggle("active", s.i === i));
     applyAudio();
