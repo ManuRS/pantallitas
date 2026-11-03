@@ -3,33 +3,33 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Multipantalla TV</title>
+  <title>Pantallias</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="app" id="app">
-    <main id="wall" class="wall" aria-label="Pantallas"></main>
+    <main id="wall" class="wall" aria-label="Pantallias"></main>
 
     <aside class="panel" id="panel">
       <header class="panel-head">
-        <h1>Multipantalla</h1>
-        <button type="button" id="hideMenu" class="icon-btn" title="Ocultar menú (H)" aria-label="Ocultar menú">⟩</button>
+        <h1>Pantallias</h1>
+        <button type="button" id="hideMenu" class="icon-btn" title="Esconder el menú (H)" aria-label="Esconder el menú">⟩</button>
       </header>
 
       <section>
-        <h2>Pantallas</h2>
+        <h2>¿Cuántas pantallias?</h2>
         <div id="count" class="seg" role="group" aria-label="Número de pantallas">
           <button type="button" data-count="4">4</button>
           <button type="button" data-count="6">6</button>
           <button type="button" data-count="8">8</button>
         </div>
-        <button type="button" id="focusBtn" class="toggle" aria-pressed="false" title="Modo foco (F)">Modo foco</button>
-        <button type="button" id="fsBtn" class="toggle" aria-pressed="false" title="Pantalla completa de toda la rejilla (P)">Pantalla completa</button>
+        <button type="button" id="focusBtn" class="toggle" aria-pressed="false" title="Una grande y las demás alrededor, mirando (F)">Modo foco</button>
+        <button type="button" id="fsBtn" class="toggle" aria-pressed="false" title="Todo Pantallias a pantalla completa, menú incluido (P)">Pantalla completa</button>
       </section>
 
       <section>
-        <h2>Volumen <small>· pantalla con foco</small></h2>
+        <h2>Volumen <small>· pantallia con foco</small></h2>
         <div class="vol">
           <button type="button" id="muteBtn" class="icon-btn" title="Silenciar (M)" aria-label="Silenciar" aria-pressed="false">🔊</button>
           <input type="range" id="volume" min="0" max="100" step="1" aria-label="Volumen">
@@ -46,31 +46,34 @@
         <button type="button" id="infoBtn" class="toggle">Información</button>
       </footer>
     </aside>
-  </div>
 
-  <button type="button" id="showMenu" class="menu-tab" title="Mostrar menú (H)" aria-label="Mostrar menú" hidden>⟨</button>
+    <button type="button" id="showMenu" class="menu-tab" title="Sacar el menú (H)" aria-label="Sacar el menú" hidden>⟨</button>
 
-  <dialog id="info" aria-labelledby="infoTitle">
-    <div class="dlg-body">
-      <div class="dlg-head">
-        <img class="logo" src="logo.svg" alt="" width="56" height="56">
-        <h2 id="infoTitle">Información</h2>
+    <dialog id="info" aria-labelledby="infoTitle">
+      <div class="dlg-body">
+        <div class="dlg-head">
+          <img class="logo" src="logo.svg" alt="" width="56" height="56">
+          <div>
+            <h2 id="infoTitle">Información</h2>
+            <p class="tagline">Pantallias: todas las teles a la vez, sin pelearte por el mando.</p>
+          </div>
+        </div>
+        <ul>
+          <li><b>Pantallias:</b> elige 4, 6 u 8. Se reparten en dos filas, de izquierda a derecha, sin líos.</li>
+          <li><b>Foco:</b> haz clic en una pantallia (o pulsa 1–8) y se queda con un halo suave: esa es la que manda. Recibe la cadena que elijas y es la única que suena; las demás, calladitas.</li>
+          <li><b>Cadenas:</b> pulsa una y salta a la pantallia con foco: empieza a sonar y el foco se queda donde está. También vale arrastrarla a la pantallia que quieras.</li>
+          <li><b>Volumen:</b> el control del menú toca el volumen de la pantallia con foco. El navegador no deja sonar nada hasta que haces tu primer clic en la página; es muy suyo.</li>
+          <li><b>Modo foco:</b> una pantallia enorme y las demás alrededor, mirando. Si pulsas una pequeña, se pide el sitio de la grande y la grande ocupa el suyo. En pantallas estrechas (móvil) no hace nada.</li>
+          <li><b>Pantalla completa:</b> el botón del menú (o <b>P</b>) estira todo Pantallias, menú incluido, que puedes sacar y esconder igual que siempre (H o la pestañita). Esc para salir. El ⛶ de cada pantallia amplía solo esa.</li>
+          <li><b>Menú:</b> se esconde con ⟩ y vuelve con la pestañita de arriba a la derecha.</li>
+          <li><b>En cada pantallia</b> (al pasar el ratón): ⛶ pantalla completa y ✕ quitar la cadena.</li>
+          <li><b>YouTube:</b> si una cadena de YouTube no carga, la pantallia te cuenta por qué y te deja abrirla en YouTube. Algunos canales (la SER, por ejemplo) no permiten incrustar su directo y ahí no hay truco que valga.</li>
+        </ul>
+        <p class="keys"><b>Atajos:</b> 1–8 elegir pantallia · F foco · P pantalla completa · M silencio · H menú</p>
+        <form method="dialog"><button class="toggle close">Entendido</button></form>
       </div>
-      <ul>
-        <li><b>Pantallas:</b> elige 4, 6 u 8. Se reparten en dos filas, de izquierda a derecha.</li>
-        <li><b>Foco:</b> haz clic en una pantalla (o pulsa 1–8). La que tiene foco lleva un halo suave, es la que recibe la cadena que elijas y la única con sonido.</li>
-        <li><b>Cadenas:</b> pulsa una de la lista y se pone en la pantalla con foco: empieza a sonar y el foco se queda en ese hueco. También puedes arrastrarla sobre cualquier pantalla.</li>
-        <li><b>Volumen:</b> el control del menú ajusta el sonido de la pantalla con foco; las demás van en silencio. El navegador no da sonido hasta que haces el primer clic en la página.</li>
-        <li><b>Modo foco:</b> la pantalla con foco se ve grande y las demás alrededor. Si pulsas una pequeña, pasa a ser la grande y la grande ocupa su sitio. En pantallas estrechas (móvil) se ignora.</li>
-        <li><b>Pantalla completa:</b> el botón del menú pone toda la rejilla a pantalla completa (Esc para salir). El ⛶ de cada pantalla amplía solo esa.</li>
-        <li><b>Menú:</b> se oculta con ⟩ y vuelve con la pestaña de arriba a la derecha.</li>
-        <li><b>En cada pantalla</b> (al pasar el ratón): ⛶ pantalla completa y ✕ quitar la cadena.</li>
-        <li><b>YouTube:</b> si una cadena de YouTube no carga, la pantalla indica el motivo y ofrece abrirla en YouTube.</li>
-      </ul>
-      <p class="keys"><b>Atajos:</b> 1–8 seleccionar · F modo foco · P pantalla completa · M silenciar · H ocultar/mostrar menú</p>
-      <form method="dialog"><button class="toggle close">Cerrar</button></form>
-    </div>
-  </dialog>
+    </dialog>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
   <script src="channels.js"></script>

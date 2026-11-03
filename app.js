@@ -5,6 +5,7 @@
   const COUNTS = [4, 6, 8];
   const KEY = "tv-wall-v2";
   const OLD_KEY = "tv-wall-v1"; // se aprovecha el estado de la v1 si existe
+  const DEFAULT_ERR = "Esta cadena se ha puesto tonta y no arranca";
 
   const byId = Object.fromEntries(CHANNELS.map((c) => [c.id, c]));
   const isPlayable = (c) => !!(c.url || c.channelId);
@@ -63,7 +64,7 @@
     el.className = "screen is-empty";
     el.innerHTML = `
       <div class="media"></div>
-      <div class="empty">Pantalla ${i + 1}<small>Elige una cadena</small></div>
+      <div class="empty">Pantalla ${i + 1}<small>Vacía: échale una cadena</small></div>
       <div class="bar">
         <span class="num">${i + 1}</span>
         <span class="name"></span>
@@ -73,7 +74,7 @@
           <button type="button" class="b-clear" title="Quitar cadena">✕</button>
         </div>
       </div>
-      <div class="err"><span class="err-msg">No se pudo reproducir esta cadena</span><a class="err-link" href="#" target="_blank" rel="noopener" hidden>Abrir en YouTube</a><button type="button">Reintentar</button></div>`;
+      <div class="err"><span class="err-msg">${DEFAULT_ERR}</span><a class="err-link" href="#" target="_blank" rel="noopener" hidden>Abrir en YouTube</a><button type="button">Reintentar</button></div>`;
 
     const s = {
       i, el,
@@ -120,7 +121,6 @@
     s.el.classList.remove("has-error");
   }
 
-  const DEFAULT_ERR = "No se pudo reproducir esta cadena";
   function showError(s, msg) {
     s.errMsg.textContent = msg || DEFAULT_ERR;
     s.el.classList.add("has-error");
@@ -128,11 +128,11 @@
 
   // Errores que YouTube comunica desde dentro del iframe (hay que "escucharle" tras cargar)
   const YT_ERRORS = {
-    100: "El directo no está disponible ahora mismo (¿no está emitiendo?).",
-    101: "El canal no permite incrustar este directo.",
-    150: "El canal no permite incrustar este directo.",
-    152: "El canal no permite incrustar este directo.",
-    153: "YouTube rechaza la incrustación (error 153). Suele ocurrir si la página se abre como archivo local: sírvela por http(s).",
+    100: "Este directo no está disponible ahora mismo (¿no está emitiendo?).",
+    101: "El canal no deja incrustar su directo: es cosa suya, no de la web.",
+    150: "El canal no deja incrustar su directo: es cosa suya, no de la web.",
+    152: "El canal no deja incrustar su directo: es cosa suya, no de la web.",
+    153: "YouTube no se fía de esta página (error 153). Suele pasar al abrirla como archivo local: ábrela por http(s).",
   };
 
   function ytListen(s) {
@@ -384,7 +384,7 @@
       if (!playable) {
         const t = document.createElement("span");
         t.className = "tag";
-        t.textContent = "pendiente";
+        t.textContent = "pronto";
         b.appendChild(t);
       } else {
         const badges = document.createElement("span");
@@ -420,15 +420,16 @@
   hideBtn.addEventListener("click", () => setMenuHidden(true));
   showBtn.addEventListener("click", () => setMenuHidden(false));
 
-  // Pantalla completa de toda la rejilla (no de un stream)
-  function toggleWallFullscreen() {
-    if (document.fullscreenElement === wall) document.exitFullscreen();
-    else if (wall.requestFullscreen) wall.requestFullscreen().catch(() => {});
+  // Pantalla completa de toda la app (rejilla + menú), no de un stream suelto.
+  // Así el menú se puede sacar y esconder también en pantalla completa.
+  function toggleAppFullscreen() {
+    if (document.fullscreenElement === app) document.exitFullscreen();
+    else if (app.requestFullscreen) app.requestFullscreen().catch(() => {});
   }
-  if (!wall.requestFullscreen) fsBtn.hidden = true; // p. ej. iPhone
-  fsBtn.addEventListener("click", toggleWallFullscreen);
+  if (!app.requestFullscreen) fsBtn.hidden = true; // p. ej. iPhone
+  fsBtn.addEventListener("click", toggleAppFullscreen);
   document.addEventListener("fullscreenchange", () => {
-    fsBtn.setAttribute("aria-pressed", String(document.fullscreenElement === wall));
+    fsBtn.setAttribute("aria-pressed", String(document.fullscreenElement === app));
   });
 
   infoBtn.addEventListener("click", () => infoDlg.showModal());
@@ -443,7 +444,7 @@
     if (n >= 1 && n <= MAX) setActive(n - 1);
     else if (k === "m") toggleMute();
     else if (k === "f") setFocusMode(!state.focus);
-    else if (k === "p") toggleWallFullscreen();
+    else if (k === "p") toggleAppFullscreen();
     else if (k === "h") setMenuHidden(!state.menuHidden);
   });
 
