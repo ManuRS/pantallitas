@@ -10,7 +10,7 @@
   let dragFrom = null; // índice de la pantallita que se está arrastrando
 
   const byId = Object.fromEntries(CHANNELS.map((c) => [c.id, c]));
-  const isPlayable = (c) => !!(c.url || c.channelId);
+  const isPlayable = (c) => !!(c.url || c.channelId || c.slug);
   const isAudioSlot = (i) => !!(byId[state.slots[i]] && byId[state.slots[i]].type === "audio"); // radio: sin imagen
 
   // ---------- Estado ----------
@@ -72,6 +72,7 @@
     el.innerHTML = `
       <div class="media"></div>
       <div class="empty">Pantalla ${i + 1}<small>Vacía: échale una cadena</small></div>
+      <div class="hint" aria-hidden="true">Pulsa «Directo» dentro del reproductor. Aquí no funciona el volumen de Pantallitas.</div>
       <div class="radio" aria-hidden="true"><div class="eq"><i></i><i></i><i></i><i></i><i></i></div><span class="radio-name"></span></div>
       <div class="bar">
         <span class="num">${i + 1}</span>
@@ -152,7 +153,7 @@
       s.node = null;
     }
     s.media.innerHTML = "";
-    s.el.classList.remove("has-error", "is-audio");
+    s.el.classList.remove("has-error", "is-audio", "is-atres");
   }
 
   function showError(s, msg) {
@@ -213,6 +214,16 @@
       });
       s.media.appendChild(f);
       s.node = f;
+    } else if (ch.type === "atres") {
+      // Reproductor oficial de Atresplayer: trae sus propios términos, botón «Directo» y sonido,
+      // que esta página no puede tocar (es de otro origen)
+      const f = document.createElement("iframe");
+      f.title = ch.name;
+      f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+      f.src = "https://www.atresplayer.com/embed/live/" + encodeURIComponent(ch.slug) + "/";
+      s.media.appendChild(f);
+      s.node = f;
+      s.el.classList.add("is-atres");
     } else if (ch.type === "audio") {
       // Solo audio: se ve un ecualizador de adorno
       const a = document.createElement("audio");
@@ -267,8 +278,9 @@
     screens.forEach((s) => {
       const focused = s.i === state.active && s.i < state.count;
       const audible = focused && state.interacted && !state.muted && vol > 0;
-      s.audEl.textContent = focused && s.node ? (audible ? "🔊" : "🔇") : "";
-      if (!s.node) return;
+      const ownSound = s.el.classList.contains("is-atres"); // su sonido no lo controlamos: sin icono
+      s.audEl.textContent = focused && s.node && !ownSound ? (audible ? "🔊" : "🔇") : "";
+      if (!s.node || ownSound) return;
 
       if (s.node.tagName === "VIDEO" || s.node.tagName === "AUDIO") {
         s.node.volume = vol;

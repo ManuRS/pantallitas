@@ -1,8 +1,9 @@
 // Lista de cadenas disponibles.
 //  - type "hls":     url a un .m3u8 (se reproduce con hls.js / HLS nativo en Safari)
 //  - type "youtube": channelId del canal (se incrusta su directo)
+//  - type "atres":   slug del canal en Atresplayer (se incrusta su reproductor oficial; sin control de volumen)
 //  - type "audio":   url a un stream de solo audio (mp3/aac); se muestra un ecualizador
-//  - sin url / channelId => cadena pendiente (aparece deshabilitada en la lista)
+//  - sin url / channelId / slug => cadena pendiente (aparece deshabilitada en la lista)
 //  - note (opcional): texto pequeño que se muestra junto al nombre en la lista
 const CHANNELS = [
   {
@@ -17,7 +18,9 @@ const CHANNELS = [
     type: "hls",
     url: "https://rtvelivestream.rtve.es/rtvesec/24h/24h_main_dvr.m3u8",
   },
-  { id: "la-sexta", name: "La Sexta", type: "hls", url: null }, // pendiente
+  // Atresplayer: se incrusta su reproductor oficial (hay que aceptar sus términos y pulsar «Directo»)
+  { id: "antena3", name: "Antena 3", type: "atres", slug: "antena3" },
+  { id: "la-sexta", name: "La Sexta", type: "atres", slug: "lasexta" },
   { id: "la-septima", name: "La Séptima", type: "hls", url: null }, // pendiente
   {
     id: "cnn",
