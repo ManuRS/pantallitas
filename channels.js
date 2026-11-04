@@ -24,7 +24,13 @@ const CHANNELS = [
   // Atresplayer: se incrusta su reproductor oficial (hay que aceptar sus términos y pulsar «Directo»)
   { id: "antena3", name: "Antena 3", type: "atres", slug: "antena3" },
   { id: "la-sexta", name: "La Sexta", type: "atres", slug: "lasexta" },
-  { id: "la-septima", name: "La Séptima", type: "hls", url: null }, // pendiente
+  {
+    // Sin HLS: emite en directo por su canal de YouTube (@la_septima_tv); este enlace lleva siempre a su directo actual
+    id: "la-septima",
+    name: "La Séptima",
+    type: "youtube",
+    channelId: "UCOCGPFW1UqPP9zdol7vEK1A",
+  },
   {
     id: "tv3",
     name: "TV3",
