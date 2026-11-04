@@ -51,6 +51,7 @@ html, body {
   transition: box-shadow .15s;
 }
 .screen[hidden] { display: none; }
+.screen { order: var(--pos, 0); } /* casilla de cada pantallita; así se intercambian sin mover los reproductores en el DOM */
 .screen[draggable="true"] { cursor: grab; }
 .screen.dragging { opacity: .5; }
 /* Mientras se arrastra, los iframes no se tragan el "soltar" */
