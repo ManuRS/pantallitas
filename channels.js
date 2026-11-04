@@ -63,6 +63,13 @@ const CHANNELS = [
     channelId: "UCBi2mrWuNuyYy4gbM6fU18Q",
   },
   {
+    // Directo de YouTube de NBC News (EE. UU.), el de la lista Tele de TDTChannels
+    id: "nbc-news",
+    name: "NBC News",
+    type: "youtube",
+    channelId: "UCeY0bbntWzzVIaj2z3QigXg",
+  },
+  {
     id: "bloomberg",
     name: "Bloomberg",
     type: "hls",

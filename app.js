@@ -116,6 +116,8 @@
     const s = {
       i, el,
       media: el.querySelector(".media"),
+      numEl: el.querySelector(".num"),
+      emptyEl: el.querySelector(".empty"),
       nameEl: el.querySelector(".name"),
       hintEl: el.querySelector(".hint"),
       bridged: false, // ¿está el puente de sonido dentro del reproductor de Atresplayer?
@@ -130,12 +132,14 @@
       retries: 0,
     };
 
-    el.addEventListener("click", () => setActive(i));
+    el.style.setProperty("--pos", i); // el sitio en la rejilla se da con CSS (order), no con el orden en el DOM
+    // OJO: s.i puede cambiar (swap intercambia pantallitas sin recargarlas), por eso aquí no se usa i
+    el.addEventListener("click", () => setActive(s.i));
     el.querySelector(".b-full").addEventListener("click", (e) => {
       e.stopPropagation();
       if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
     });
-    el.querySelector(".b-clear").addEventListener("click", (e) => { e.stopPropagation(); assign(i, null); });
+    el.querySelector(".b-clear").addEventListener("click", (e) => { e.stopPropagation(); assign(s.i, null); });
     s.touchBtn.addEventListener("click", (e) => { e.stopPropagation(); el.classList.toggle("no-touch"); syncTouch(s); });
     if (document.pictureInPictureEnabled) {
       s.pipBtn.addEventListener("click", (e) => { e.stopPropagation(); togglePip(s); });
@@ -147,10 +151,10 @@
 
     // Mover pantallitas: se agarra una con cadena y se suelta sobre otra (se intercambian)
     el.addEventListener("dragstart", (e) => {
-      if (!state.slots[i]) { e.preventDefault(); return; }
-      dragFrom = i;
+      if (!state.slots[s.i]) { e.preventDefault(); return; }
+      dragFrom = s.i;
       e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData(SWAP_MIME, String(i));
+      e.dataTransfer.setData(SWAP_MIME, String(s.i));
       el.classList.add("dragging");
       app.classList.add("is-dragging"); // los iframes de YouTube no deben tragarse el "soltar"
     });
@@ -173,11 +177,11 @@
       if (dragFrom !== null) {
         const from = dragFrom;
         dragFrom = null;
-        if (from !== i) swap(from, i);
+        if (from !== s.i) swap(from, s.i);
         return;
       }
       const id = e.dataTransfer.getData("text/plain");
-      if (byId[id] && isPlayable(byId[id])) { assign(i, id); setActive(i); }
+      if (byId[id] && isPlayable(byId[id])) { assign(s.i, id); setActive(s.i); }
     });
 
     wall.appendChild(el);
@@ -497,15 +501,21 @@
     save();
   }
 
-  // Intercambia las cadenas de dos pantallitas. El foco se queda en su casilla
-  // (como al elegir una cadena); los dos streams se recargan un instante.
+  // Intercambia dos pantallitas SIN recargarlas: los reproductores no se tocan (un iframe se reiniciaría y en
+  // Atresplayer habría que aceptar los términos y pulsar «Directo» otra vez). Lo que cambia es qué casilla
+  // ocupa cada una. El foco se queda en su casilla (como al elegir una cadena).
   function swap(a, b) {
     [state.slots[a], state.slots[b]] = [state.slots[b], state.slots[a]];
-    [a, b].forEach((k) => {
-      screens[k].retries = 0;
-      start(screens[k]);
+    [screens[a], screens[b]] = [screens[b], screens[a]];
+    screens.forEach((s, k) => {
+      s.i = k;
+      s.el.style.setProperty("--pos", k);
+      s.numEl.textContent = k + 1;
+      s.emptyEl.firstChild.nodeValue = "Pantalla " + (k + 1);
     });
     placeFocus();
+    syncAtres();   // sin puente, la que acaba en la casilla con foco se reanuda y la otra se pausa
+    applyAudio();  // suena la que ha quedado en la casilla con foco
     renderBadges();
     save();
   }
