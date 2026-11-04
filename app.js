@@ -105,6 +105,7 @@
         <span class="name"></span>
         <span class="aud" aria-hidden="true"></span>
         <div class="actions">
+          <button type="button" class="b-pip" aria-pressed="false" title="Imagen en imagen">⧉</button>
           <button type="button" class="b-touch" aria-pressed="false">🖱</button>
           <button type="button" class="b-full" title="Pantalla completa">⛶</button>
           <button type="button" class="b-clear" title="Quitar cadena">✕</button>
@@ -123,6 +124,7 @@
       errMsg: el.querySelector(".err-msg"),
       errLink: el.querySelector(".err-link"),
       touchBtn: el.querySelector(".b-touch"),
+      pipBtn: el.querySelector(".b-pip"),
       node: null,   // <video> o <iframe>
       hls: null,
       retries: 0,
@@ -135,6 +137,12 @@
     });
     el.querySelector(".b-clear").addEventListener("click", (e) => { e.stopPropagation(); assign(i, null); });
     s.touchBtn.addEventListener("click", (e) => { e.stopPropagation(); el.classList.toggle("no-touch"); syncTouch(s); });
+    if (document.pictureInPictureEnabled) {
+      s.pipBtn.addEventListener("click", (e) => { e.stopPropagation(); togglePip(s); });
+    } else {
+      s.pipBtn.remove(); // el navegador no tiene imagen en imagen (p. ej. Firefox móvil)
+      s.pipBtn = null;
+    }
     el.querySelector(".err button").addEventListener("click", (e) => { e.stopPropagation(); s.retries = 0; start(s); });
 
     // Mover pantallitas: se agarra una con cadena y se suelta sobre otra (se intercambian)
@@ -177,7 +185,17 @@
   }
 
   // ---------- Reproducción ----------
+  // Imagen en imagen: solo las cadenas de vídeo (HLS). YouTube y Atresplayer van en un iframe de otro dominio
+  // y el navegador no deja sacarlas desde aquí.
+  function togglePip(s) {
+    const v = s.node;
+    if (!v || v.tagName !== "VIDEO") return;
+    if (document.pictureInPictureElement === v) document.exitPictureInPicture().catch(() => {});
+    else v.requestPictureInPicture().catch(() => {});
+  }
+
   function stop(s) {
+    if (s.node && document.pictureInPictureElement === s.node) document.exitPictureInPicture().catch(() => {});
     if (s.hls) { s.hls.destroy(); s.hls = null; }
     if (s.node) {
       if (s.node.tagName === "VIDEO" || s.node.tagName === "AUDIO") { s.node.pause(); s.node.removeAttribute("src"); s.node.load(); }
@@ -185,7 +203,8 @@
     }
     s.media.innerHTML = "";
     s.bridged = false;
-    s.el.classList.remove("has-error", "is-audio", "is-atres", "is-suspended", "no-touch");
+    s.el.classList.remove("has-error", "is-audio", "is-atres", "is-suspended", "no-touch", "is-video");
+    if (s.pipBtn) s.pipBtn.setAttribute("aria-pressed", "false");
     syncTouch(s);
   }
 
@@ -348,8 +367,13 @@
       v.autoplay = true;
       v.playsInline = true;
       v.controls = false;
+      if (s.pipBtn) {
+        v.addEventListener("enterpictureinpicture", () => s.pipBtn.setAttribute("aria-pressed", "true"));
+        v.addEventListener("leavepictureinpicture", () => s.pipBtn.setAttribute("aria-pressed", "false"));
+      }
       s.media.appendChild(v);
       s.node = v;
+      s.el.classList.add("is-video");
 
       if (window.Hls && Hls.isSupported()) {
         const hls = new Hls();
@@ -486,6 +510,13 @@
     save();
   }
 
+  // Atresplayer con el puente de sonido: al ocultar la pantallita (menos pantallitas) sigue corriendo, en silencio,
+  // para no tener que aceptar términos y pulsar «Directo» otra vez al volver. Sin puente no se puede silenciar: se para.
+  const keepHidden = (s) => {
+    const ch = byId[state.slots[s.i]];
+    return !!(ch && ch.type === "atres" && s.node && s.bridged);
+  };
+
   function layout() {
     wall.style.setProperty("--cols", Math.ceil(state.count / 2));
     wall.style.setProperty("--rows", state.count === 1 ? 1 : 2);
@@ -494,7 +525,7 @@
       const visible = s.i < state.count;
       s.el.hidden = !visible;
       if (!visible) {
-        stop(s);
+        if (!keepHidden(s)) stop(s);
       } else if (!s.node && state.slots[s.i]) {
         start(s);
       } else if (!state.slots[s.i]) {

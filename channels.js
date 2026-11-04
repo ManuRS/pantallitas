@@ -56,6 +56,13 @@ const CHANNELS = [
     url: "https://cbsn-us.cbsnstream.cbsnews.com/out/v1/55a8648e8f134e82a470f83d562deeca/master.m3u8",
   },
   {
+    // Directo de YouTube de ABC News (EE. UU.), el mismo de la lista Tele de TDTChannels
+    id: "abc-news",
+    name: "ABC News",
+    type: "youtube",
+    channelId: "UCBi2mrWuNuyYy4gbM6fU18Q",
+  },
+  {
     id: "bloomberg",
     name: "Bloomberg",
     type: "hls",
