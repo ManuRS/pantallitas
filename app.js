@@ -57,6 +57,7 @@
     menuHidden: saved.menuHidden === true,  // menú lateral oculto
     volume: clamp01(saved.volume, 0.8),
     muted: saved.muted === true,
+    autoPip: saved.autoPip !== false,       // imagen en imagen automática (activada por defecto)
     order: [],          // modo foco: order[0] es la pantalla grande
     interacted: false,  // el navegador no deja sonar hasta el primer gesto
   };
@@ -66,7 +67,7 @@
       localStorage.setItem(KEY, JSON.stringify({
         count: state.count, slots: state.slots, active: state.active,
         focus: state.focus, menuHidden: state.menuHidden, view: state.view,
-        volume: state.volume, muted: state.muted,
+        volume: state.volume, muted: state.muted, autoPip: state.autoPip,
       }));
     } catch { /* sin almacenamiento: no pasa nada */ }
   }
@@ -88,6 +89,7 @@
   const infoBtn = document.getElementById("infoBtn");
   const infoDlg = document.getElementById("info");
   const fsBtn = document.getElementById("fsBtn");
+  const pipAutoBtn = document.getElementById("pipAutoBtn");
 
   const screens = Array.from({ length: MAX }, (_, i) => createScreen(i));
 
@@ -623,6 +625,35 @@
     save();
   }
 
+  // ---------- Imagen en imagen automática ----------
+  // Chrome (y navegadores basados en él) sacan solos un vídeo en imagen en imagen cuando cambias de pestaña o
+  // minimizas, si la página registra la acción «enterpictureinpicture» de Media Session y hay un vídeo sonando.
+  // La pantallita elegida es la que tiene el foco; si esa no es un vídeo, la primera pantallita de vídeo visible.
+  function pickPipVideo() {
+    const withVideo = (s) => s && s.i < state.count && s.node && s.node.tagName === "VIDEO" && s.node.readyState > 0;
+    const s = withVideo(screens[state.active]) ? screens[state.active] : screens.find(withVideo);
+    return s ? s.node : null;
+  }
+
+  // Devuelve false si el navegador no sabe hacerlo (entonces el botón no se enseña)
+  function syncAutoPip() {
+    try {
+      if (!("mediaSession" in navigator) || !document.pictureInPictureEnabled) return false;
+      navigator.mediaSession.setActionHandler("enterpictureinpicture", state.autoPip ? () => {
+        const v = pickPipVideo();
+        return v && document.pictureInPictureElement !== v ? v.requestPictureInPicture() : undefined;
+      } : null);
+      return true;
+    } catch { return false; } // acción no admitida (Firefox, Safari...)
+  }
+
+  function setAutoPip(on) {
+    state.autoPip = on;
+    pipAutoBtn.setAttribute("aria-pressed", String(on));
+    syncAutoPip();
+    save();
+  }
+
   // ---------- Menú lateral ----------
   function setMenuHidden(hidden) {
     state.menuHidden = hidden;
@@ -896,6 +927,7 @@
   listFilter.addEventListener("input", () => { filterText = listFilter.value; renderList(); });
 
   focusBtn.addEventListener("click", () => setFocusMode(!state.focus));
+  pipAutoBtn.addEventListener("click", () => setAutoPip(!state.autoPip));
   hideBtn.addEventListener("click", () => setMenuHidden(true));
   showBtn.addEventListener("click", () => setMenuHidden(false));
 
@@ -929,6 +961,8 @@
 
   // Arranque: se leen las listas guardadas, se monta la rejilla y, si hace falta, se bajan las nuevas por detrás
   setMenuHidden(state.menuHidden);
+  pipAutoBtn.hidden = !syncAutoPip();
+  pipAutoBtn.setAttribute("aria-pressed", String(state.autoPip));
   listSel.value = state.view;
   Object.keys(catalogs).forEach(loadCatalog);
   sanitizeSlots();
