@@ -377,6 +377,7 @@
         v.addEventListener("enterpictureinpicture", () => s.pipBtn.setAttribute("aria-pressed", "true"));
         v.addEventListener("leavepictureinpicture", () => s.pipBtn.setAttribute("aria-pressed", "false"));
       }
+      v.addEventListener("loadedmetadata", updateMediaSession);
       s.media.appendChild(v);
       s.node = v;
       s.el.classList.add("is-video");
@@ -444,6 +445,7 @@
     const off = state.muted || vol === 0;
     muteBtn.textContent = off ? "🔇" : "🔊";
     muteBtn.setAttribute("aria-pressed", String(off));
+    updateMediaSession();
   }
 
   function toggleMute() {
@@ -635,17 +637,56 @@
     return s ? s.node : null;
   }
 
+  let autoPipVideo = null; // vídeo que sacó la acción automática (para cerrarlo al volver a la pestaña)
+
   // Devuelve false si el navegador no sabe hacerlo (entonces el botón no se enseña)
   function syncAutoPip() {
     try {
       if (!("mediaSession" in navigator) || !document.pictureInPictureEnabled) return false;
-      navigator.mediaSession.setActionHandler("enterpictureinpicture", state.autoPip ? () => {
+      const ms = navigator.mediaSession;
+      ms.setActionHandler("enterpictureinpicture", state.autoPip ? () => {
         const v = pickPipVideo();
-        return v && document.pictureInPictureElement !== v ? v.requestPictureInPicture() : undefined;
+        if (!v || document.pictureInPictureElement) return undefined;
+        return v.requestPictureInPicture().then((w) => { autoPipVideo = v; return w; });
       } : null);
+      // Chrome solo trata la pestaña como un reproductor «de verdad» si también tiene play/pausa
+      ms.setActionHandler("play", state.autoPip ? () => {
+        const v = pickPipVideo();
+        return v ? v.play() : undefined;
+      } : null);
+      ms.setActionHandler("pause", state.autoPip ? () => {
+        const v = pickPipVideo();
+        if (v) v.pause();
+      } : null);
+      updateMediaSession();
       return true;
     } catch { return false; } // acción no admitida (Firefox, Safari...)
   }
+
+  // Metadatos de reproducción: nombre de la cadena con foco, para que el navegador vea un reproductor
+  function updateMediaSession() {
+    try {
+      if (!("mediaSession" in navigator)) return;
+      const ms = navigator.mediaSession;
+      if (!state.autoPip) { ms.metadata = null; return; }
+      const v = pickPipVideo();
+      const s = v && screens.find((x) => x.node === v);
+      ms.metadata = new MediaMetadata({
+        title: (s && s.nameEl.textContent) || "Pantallitas",
+        artist: "Pantallitas",
+        artwork: [{ src: "logo.svg", sizes: "any", type: "image/svg+xml" }],
+      });
+    } catch { /* sin Media Session */ }
+  }
+
+  // Al volver a la pestaña, se cierra la ventana flotante que sacó la acción automática
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible" || !autoPipVideo) return;
+    const v = autoPipVideo;
+    autoPipVideo = null;
+    if (document.pictureInPictureElement === v) document.exitPictureInPicture().catch(() => {});
+  });
+  document.addEventListener("leavepictureinpicture", () => { autoPipVideo = null; }, true);
 
   function setAutoPip(on) {
     state.autoPip = on;
