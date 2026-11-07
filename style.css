@@ -308,6 +308,19 @@ html, body {
   font-weight: 700;
 }
 .panel-foot .toggle { margin-top: 0; }
+/* los cuatro botones del menú, de dos en dos */
+.tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.tools .toggle {
+  margin-top: 0;
+  padding: 8px 6px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tools .toggle[hidden] { display: none; }
+.tools .toggle:disabled { opacity: .45; cursor: default; }
+.tools .toggle:disabled:hover { border-color: var(--line); }
 
 .seg {
   display: grid;

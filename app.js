@@ -44,20 +44,34 @@
   })();
   const clamp01 = (v, d) => (typeof v === "number" && isFinite(v) ? Math.min(1, Math.max(0, v)) : d);
 
+  // «Guardar orden»: una foto fija de las cadenas, su orden y el foco que se recupera siempre al abrir la página.
+  // Sin ella se recupera lo último que había al cerrar.
+  function cleanPin(p) {
+    if (!p || typeof p !== "object" || !COUNTS.includes(p.count) || !Array.isArray(p.slots)) return null;
+    return {
+      count: p.count,
+      slots: Array.from({ length: MAX }, (_, i) => (typeof p.slots[i] === "string" ? p.slots[i] : null)),
+      active: Number.isInteger(p.active) && p.active >= 0 && p.active < MAX ? p.active : 0,
+      focus: p.focus !== false,
+    };
+  }
+  const pin = cleanPin(saved.pinned);
+  const base = pin ? { ...saved, ...pin } : saved; // con el orden guardado, mandan sus valores
+
   const state = {
-    count: COUNTS.includes(saved.count) ? saved.count : 6,
+    count: COUNTS.includes(base.count) ? base.count : 6,
     // ids de cadena; se validan cuando están cargadas las listas (sanitizeSlots)
     slots: Array.from({ length: MAX }, (_, i) => {
-      const id = saved.slots && saved.slots[i];
+      const id = base.slots && base.slots[i];
       return typeof id === "string" ? id : null;
     }),
     view: VIEWS.includes(saved.view) ? saved.view : "creator", // qué lista se ve en el menú
-    active: Number.isInteger(saved.active) && saved.active >= 0 && saved.active < MAX ? saved.active : 0,
-    focus: saved.focus !== false,           // modo foco (activado por defecto)
+    active: Number.isInteger(base.active) && base.active >= 0 && base.active < MAX ? base.active : 0,
+    focus: base.focus !== false,            // modo foco (activado por defecto)
     menuHidden: saved.menuHidden === true,  // menú lateral oculto
     volume: clamp01(saved.volume, 0.8),
     muted: saved.muted === true,
-    autoPip: saved.autoPip !== false,       // imagen en imagen automática (activada por defecto)
+    pinned: pin,        // orden guardado (o null)
     order: [],          // modo foco: order[0] es la pantalla grande
     interacted: false,  // el navegador no deja sonar hasta el primer gesto
   };
@@ -67,7 +81,7 @@
       localStorage.setItem(KEY, JSON.stringify({
         count: state.count, slots: state.slots, active: state.active,
         focus: state.focus, menuHidden: state.menuHidden, view: state.view,
-        volume: state.volume, muted: state.muted, autoPip: state.autoPip,
+        volume: state.volume, muted: state.muted, pinned: state.pinned,
       }));
     } catch { /* sin almacenamiento: no pasa nada */ }
   }
@@ -89,7 +103,8 @@
   const infoBtn = document.getElementById("infoBtn");
   const infoDlg = document.getElementById("info");
   const fsBtn = document.getElementById("fsBtn");
-  const pipAutoBtn = document.getElementById("pipAutoBtn");
+  const pipBtn = document.getElementById("pipBtn");
+  const pinBtn = document.getElementById("pinBtn");
 
   const screens = Array.from({ length: MAX }, (_, i) => createScreen(i));
 
@@ -439,16 +454,24 @@
       }
     });
 
-    // Controles del menú
-    volRange.value = Math.round(vol * 100);
-    volOut.textContent = Math.round(vol * 100);
-    const off = state.muted || vol === 0;
+    // Controles del menú. Hasta el primer gesto el navegador no deja sonar: se enseña el altavoz tachado y la
+    // barra a cero, para que se vea que hay que pinchar algo
+    const locked = !state.interacted;
+    const shown = locked ? 0 : vol;
+    volRange.value = Math.round(shown * 100);
+    volOut.textContent = Math.round(shown * 100);
+    const off = locked || state.muted || vol === 0;
     muteBtn.textContent = off ? "🔇" : "🔊";
     muteBtn.setAttribute("aria-pressed", String(off));
+    muteBtn.title = locked ? "Pincha aquí (o en cualquier sitio) para activar el sonido" : off ? "Activar el sonido (M)" : "Silenciar (M)";
     updateMediaSession();
   }
 
+  // El primer gesto solo despierta el sonido: si fue sobre el altavoz (o la tecla M), no debe además silenciarlo
+  let justUnlocked = false;
+
   function toggleMute() {
+    if (justUnlocked) { justUnlocked = false; return; }
     state.muted = !state.muted;
     if (!state.muted && state.volume === 0) state.volume = 0.5;
     applyAudio();
@@ -467,8 +490,9 @@
 
   // Primer gesto del usuario: a partir de ahí el navegador permite el sonido
   const markInteracted = () => {
-    if (state.interacted) return;
+    if (state.interacted) { justUnlocked = false; return; }
     state.interacted = true;
+    justUnlocked = !state.muted && state.volume > 0;
     applyAudio();
   };
   ["pointerdown", "keydown"].forEach((ev) => document.addEventListener(ev, markInteracted, true));
@@ -627,51 +651,60 @@
     save();
   }
 
-  // ---------- Imagen en imagen automática ----------
-  // Chrome (y navegadores basados en él) sacan solos un vídeo en imagen en imagen cuando cambias de pestaña o
-  // minimizas, si la página registra la acción «enterpictureinpicture» de Media Session y hay un vídeo sonando.
-  // La pantallita elegida es la que tiene el foco; si esa no es un vídeo, la primera pantallita de vídeo visible.
+  // ---------- Imagen en imagen desde el menú ----------
+  // El botón del menú saca (o cierra) la ventana flotante de la pantallita con foco; si esa no es un vídeo,
+  // la de la primera pantallita de vídeo visible.
   function pickPipVideo() {
     const withVideo = (s) => s && s.i < state.count && s.node && s.node.tagName === "VIDEO" && s.node.readyState > 0;
     const s = withVideo(screens[state.active]) ? screens[state.active] : screens.find(withVideo);
     return s ? s.node : null;
   }
 
-  let autoPipVideo = null; // vídeo que sacó la acción automática (para cerrarlo al volver a la pestaña)
+  function togglePipMenu() {
+    if (document.pictureInPictureElement) { document.exitPictureInPicture().catch(() => {}); return; }
+    const v = pickPipVideo();
+    if (v) v.requestPictureInPicture().catch(() => {});
+  }
 
-  // Devuelve false si el navegador no sabe hacerlo (entonces el botón no se enseña)
-  function syncAutoPip() {
+  function syncPipBtn() {
+    const on = !!document.pictureInPictureElement;
+    pipBtn.setAttribute("aria-pressed", String(on));
+    pipBtn.disabled = !on && !pickPipVideo(); // sin ninguna cadena de vídeo no hay nada que sacar
+  }
+
+  // Imagen en imagen automática de Chrome: se deja registrada la acción de Media Session por si el navegador la usa
+  // (en las pruebas reales no salta sola, pero no estorba). Vídeo elegido por esa vía: se cierra al volver a la pestaña.
+  let autoPipVideo = null;
+
+  function setupMediaSession() {
     try {
-      if (!("mediaSession" in navigator) || !document.pictureInPictureEnabled) return false;
+      if (!("mediaSession" in navigator) || !document.pictureInPictureEnabled) return;
       const ms = navigator.mediaSession;
-      ms.setActionHandler("enterpictureinpicture", state.autoPip ? () => {
+      ms.setActionHandler("enterpictureinpicture", () => {
         const v = pickPipVideo();
         if (!v || document.pictureInPictureElement) return undefined;
         return v.requestPictureInPicture().then((w) => { autoPipVideo = v; return w; });
-      } : null);
-      // Chrome solo trata la pestaña como un reproductor «de verdad» si también tiene play/pausa
-      ms.setActionHandler("play", state.autoPip ? () => {
+      });
+      ms.setActionHandler("play", () => {
         const v = pickPipVideo();
         return v ? v.play() : undefined;
-      } : null);
-      ms.setActionHandler("pause", state.autoPip ? () => {
+      });
+      ms.setActionHandler("pause", () => {
         const v = pickPipVideo();
         if (v) v.pause();
-      } : null);
+      });
       updateMediaSession();
-      return true;
-    } catch { return false; } // acción no admitida (Firefox, Safari...)
+    } catch { /* acción no admitida (Firefox, Safari...) */ }
   }
 
   // Metadatos de reproducción: nombre de la cadena con foco, para que el navegador vea un reproductor
   function updateMediaSession() {
+    syncPipBtn();
     try {
       if (!("mediaSession" in navigator)) return;
-      const ms = navigator.mediaSession;
-      if (!state.autoPip) { ms.metadata = null; return; }
       const v = pickPipVideo();
       const s = v && screens.find((x) => x.node === v);
-      ms.metadata = new MediaMetadata({
+      navigator.mediaSession.metadata = new MediaMetadata({
         title: (s && s.nameEl.textContent) || "Pantallitas",
         artist: "Pantallitas",
         artwork: [{ src: "logo.svg", sizes: "any", type: "image/svg+xml" }],
@@ -686,12 +719,23 @@
     autoPipVideo = null;
     if (document.pictureInPictureElement === v) document.exitPictureInPicture().catch(() => {});
   });
-  document.addEventListener("leavepictureinpicture", () => { autoPipVideo = null; }, true);
+  // los eventos de imagen en imagen se disparan en el <video> y suben hasta el documento
+  document.addEventListener("enterpictureinpicture", syncPipBtn, true);
+  document.addEventListener("leavepictureinpicture", () => { autoPipVideo = null; syncPipBtn(); }, true);
 
-  function setAutoPip(on) {
-    state.autoPip = on;
-    pipAutoBtn.setAttribute("aria-pressed", String(on));
-    syncAutoPip();
+  // ---------- Guardar orden ----------
+  function syncPinBtn() {
+    const on = !!state.pinned;
+    pinBtn.setAttribute("aria-pressed", String(on));
+    pinBtn.textContent = on ? "Orden guardado" : "Guardar orden";
+    pinBtn.title = on
+      ? "Al abrir la página siempre vuelve este orden. Pulsa para soltarlo y recuperar lo último que dejes"
+      : "Guarda las cadenas, su orden y el foco para recuperarlos siempre al abrir la página";
+  }
+
+  function togglePin() {
+    state.pinned = state.pinned ? null : cleanPin({ count: state.count, slots: state.slots, active: state.active, focus: state.focus });
+    syncPinBtn();
     save();
   }
 
@@ -968,7 +1012,8 @@
   listFilter.addEventListener("input", () => { filterText = listFilter.value; renderList(); });
 
   focusBtn.addEventListener("click", () => setFocusMode(!state.focus));
-  pipAutoBtn.addEventListener("click", () => setAutoPip(!state.autoPip));
+  pipBtn.addEventListener("click", togglePipMenu);
+  pinBtn.addEventListener("click", togglePin);
   hideBtn.addEventListener("click", () => setMenuHidden(true));
   showBtn.addEventListener("click", () => setMenuHidden(false));
 
@@ -1002,8 +1047,9 @@
 
   // Arranque: se leen las listas guardadas, se monta la rejilla y, si hace falta, se bajan las nuevas por detrás
   setMenuHidden(state.menuHidden);
-  pipAutoBtn.hidden = !syncAutoPip();
-  pipAutoBtn.setAttribute("aria-pressed", String(state.autoPip));
+  pipBtn.hidden = !document.pictureInPictureEnabled; // sin imagen en imagen en el navegador, no se enseña
+  setupMediaSession();
+  syncPinBtn();
   listSel.value = state.view;
   Object.keys(catalogs).forEach(loadCatalog);
   sanitizeSlots();
