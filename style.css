@@ -27,6 +27,7 @@ html, body {
   display: grid;
   grid-template-columns: 1fr 300px;
   height: 100vh;
+  height: 100dvh; /* en móviles y tabletas, sin contar la barra del navegador */
 }
 .app.menu-hidden { grid-template-columns: 1fr; }
 .app.menu-hidden .panel { display: none; }
@@ -476,7 +477,6 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
   .wall.single { grid-template-columns: minmax(0, 1fr); }
   .screen { aspect-ratio: 16 / 9; }
   /* Modo foco en móvil: la grande arriba a todo el ancho y el resto debajo, de dos en dos */
-  .wall.focus .screen { order: var(--ord); }
   .wall.focus .screen.is-big { grid-column: 1 / -1; }
   .panel { border-left: 0; border-top: 1px solid var(--line); }
   .channels { max-height: 60vh; }

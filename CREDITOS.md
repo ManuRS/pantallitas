@@ -42,3 +42,9 @@ La idea de resolver el sonido de Antena 3 y La Sexta con un script que corre den
 
 - [hls.js](https://github.com/video-dev/hls.js) (Apache 2.0), para reproducir HLS (`.m3u8`) en navegadores que no lo
   traen de serie.
+
+## Reproductor HLS: hls.js
+
+Las cadenas en HLS (`.m3u8`) se reproducen con **[hls.js](https://github.com/video-dev/hls.js)** (versión 1.7.4), copiado
+tal cual en [`vendor/hls.min.js`](vendor/hls.min.js) para tener una versión fija y no depender de un CDN. Se publica con la
+[licencia Apache 2.0](vendor/hls.js.LICENSE).

@@ -50,7 +50,8 @@
   }
   </script>
 
-  <link rel="stylesheet" href="style.css">
+  <!-- ?v=N: al cambiar style.css o cualquiera de los .js, súbele el número a todos para que nadie se quede con una mezcla de versiones -->
+  <link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
   <div class="app" id="app">
@@ -131,9 +132,10 @@
     </dialog>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
-  <script src="channels.js"></script>
-  <script src="catalog.js"></script>
-  <script src="app.js"></script>
+  <!-- hls.js 1.7.4, copiado en el repo (ver CREDITOS.md): versión fija y sin depender de un CDN -->
+  <script src="vendor/hls.min.js?v=1.7.4"></script>
+  <script src="channels.js?v=17"></script>
+  <script src="catalog.js?v=17"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

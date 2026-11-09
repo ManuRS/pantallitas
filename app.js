@@ -26,10 +26,11 @@
   const RETRY_AFTER = 6 * 3600 * 1000; // si la descarga falla, no se insiste hasta pasadas unas horas
   const LIST_KEY = (kind) => "tv-wall-list-" + kind;
   const FAVS_KEY = "tv-wall-favs";
+  const KNOWN_KEY = "tv-wall-known"; // copia de las cadenas de Tele/Radio en uso (pantallitas, orden guardado y favoritas)
   const HTTPS = location.protocol === "https:";
 
   // «Creator»: la lista personal (channels.js), con los enlaces a mano. Las de TDTChannels se añaden después.
-  const byId = Object.fromEntries(CHANNELS.map((c) => [c.id, c]));
+  const byId = Object.assign(Object.create(null), Object.fromEntries(CHANNELS.map((c) => [c.id, c]))); // sin prototipo: ningún id raro cuela
   const isPlayable = (c) => !!(c.url || c.channelId || c.videoId || c.slug);
   const isAudioSlot = (i) => !!(byId[state.slots[i]] && byId[state.slots[i]].type === "audio"); // radio: sin imagen
 
@@ -75,7 +76,6 @@
     volume: clamp01(saved.volume, 0.8),
     muted: saved.muted === true,
     pinned: pin,        // orden guardado (o null)
-    order: [],          // modo foco: order[k] es la casilla que va en el hueco k (la 0 es la grande)
     interacted: false,  // el navegador no deja sonar hasta el primer gesto
   };
 
@@ -87,6 +87,13 @@
         volume: state.volume, muted: state.muted, pinned: state.pinned,
       }));
     } catch { /* sin almacenamiento: no pasa nada */ }
+    saveKnown();
+  }
+  // Al mover el volumen se guarda una vez al soltar, no en cada paso
+  let saveTimer = 0;
+  function saveSoon() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 300);
   }
 
   // ---------- DOM ----------
@@ -125,10 +132,10 @@
         <span class="name"></span>
         <span class="aud" aria-hidden="true"></span>
         <div class="actions">
-          <button type="button" class="b-pip" aria-pressed="false" title="Imagen en imagen">⧉</button>
-          <button type="button" class="b-touch" aria-pressed="false">🖱</button>
-          <button type="button" class="b-full" title="Pantalla completa">⛶</button>
-          <button type="button" class="b-clear" title="Quitar cadena">✕</button>
+          <button type="button" class="b-pip" aria-pressed="false" title="Imagen en imagen" aria-label="Imagen en imagen">⧉</button>
+          <button type="button" class="b-touch" aria-pressed="false" aria-label="Ocultar los controles del reproductor">🖱</button>
+          <button type="button" class="b-full" title="Pantalla completa" aria-label="Pantalla completa">⛶</button>
+          <button type="button" class="b-clear" title="Quitar cadena" aria-label="Quitar cadena">✕</button>
         </div>
       </div>
       <div class="err"><span class="err-msg">${DEFAULT_ERR}</span><a class="err-link" href="#" target="_blank" rel="noopener" hidden>Abrir en YouTube</a><button type="button">Reintentar</button></div>`;
@@ -150,6 +157,10 @@
       node: null,   // <video> o <iframe>
       hls: null,
       retries: 0,
+      lastErr: 0,     // cuándo fue el último error grave del stream
+      parked: false,  // carga parada mientras la pestaña está oculta
+      ytReady: false, // ¿ha contestado ya el reproductor de YouTube?
+      ytTimer: 0,
     };
 
     el.style.setProperty("--pos", i); // el sitio en la rejilla se da con CSS (order), no con el orden en el DOM
@@ -168,6 +179,7 @@
       s.pipBtn = null;
     }
     el.querySelector(".err button").addEventListener("click", (e) => { e.stopPropagation(); s.retries = 0; start(s); });
+    s.errLink.addEventListener("click", (e) => e.stopPropagation()); // abrir el enlace no es elegir la pantallita
 
     // Mover pantallitas: se agarra una con cadena y se suelta sobre otra (se intercambian)
     el.addEventListener("dragstart", (e) => {
@@ -201,7 +213,10 @@
         return;
       }
       const id = e.dataTransfer.getData("text/plain");
-      if (byId[id] && isPlayable(byId[id])) { assign(s.i, id); setActive(s.i); }
+      if (byId[id] && isPlayable(byId[id])) {
+        const at = assign(s.i, id);
+        setActive(at);
+      }
     });
 
     wall.appendChild(el);
@@ -221,6 +236,9 @@
   function stop(s) {
     if (s.node && document.pictureInPictureElement === s.node) document.exitPictureInPicture().catch(() => {});
     if (s.hls) { s.hls.destroy(); s.hls = null; }
+    clearInterval(s.ytTimer);
+    s.ytReady = false;
+    s.parked = false;
     if (s.node) {
       if (s.node.tagName === "VIDEO" || s.node.tagName === "AUDIO") { s.node.pause(); s.node.removeAttribute("src"); s.node.load(); }
       s.node = null;
@@ -242,6 +260,7 @@
     s.touchBtn.title = off
       ? "Controles del reproductor ocultos. Pulsa para volver a usarlos (aceptar términos, «Directo»…)"
       : "Ocultar los controles del reproductor";
+    s.touchBtn.setAttribute("aria-label", off ? "Volver a usar los controles del reproductor" : "Ocultar los controles del reproductor");
   }
 
   function showError(s, msg) {
@@ -282,8 +301,66 @@
     if (!s) return;
     let d = e.data;
     if (typeof d === "string") { try { d = JSON.parse(d); } catch { return; } }
-    if (d && d.event === "onError") showError(s, YT_ERRORS[d.info] || `YouTube devolvió el error ${d.info}.`);
+    if (!d || typeof d !== "object") return;
+    // En cuanto el reproductor contesta (tarde lo que tarde: anuncios, red lenta) se le manda el sonido
+    if (!s.ytReady || d.event === "onReady") {
+      s.ytReady = true;
+      clearInterval(s.ytTimer);
+      applyAudioTo(s);
+    }
+    if (d.event === "onError") showError(s, YT_ERRORS[d.info] || `YouTube devolvió el error ${d.info}.`);
   });
+
+  // hls.js: cada pantallita baja la calidad que le cabe (las pequeñas, poca; la grande, toda), guarda poco vídeo
+  // en memoria y, si se queda muy atrás del directo, vuelve a él
+  const HLS_VIDEO = {
+    capLevelToPlayerSize: true,
+    backBufferLength: 30,
+    maxBufferLength: 15,
+    maxMaxBufferLength: 30,
+    liveSyncDurationCount: 3,        // (el valor de serie; hls.js exige darlo junto al siguiente)
+    liveMaxLatencyDurationCount: 10,
+  };
+  const HLS_AUDIO = { ...HLS_VIDEO, capLevelToPlayerSize: false };
+  // Reintentos ante un error grave. Una cadena que nunca llegó a arrancar se da por mala pronto (3 intentos, ~10 s).
+  // Una que ya estaba sonando merece más paciencia: lo normal es un corte de red, así que se insiste cada vez más
+  // despacio durante minuto y medio antes de rendirse.
+  const HLS_RETRY_NEW = [2000, 2000, 2000];
+  const HLS_RETRY_PLAYED = [2000, 4000, 8000, 15000, 30000, 30000];
+  const HLS_HEALTHY_MS = 30000; // tras este rato sin errores graves, el stream vuelve a tener todos sus reintentos
+
+  function playHls(s, media, url, config, errMsg) {
+    const hls = new Hls(config);
+    let played = false; // ¿ha llegado a cargar vídeo alguna vez?
+    s.hls = hls;
+    hls.loadSource(url);
+    hls.attachMedia(media);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => { if (!s.parked) media.play().catch(() => {}); });
+    hls.on(Hls.Events.FRAG_BUFFERED, () => {
+      played = true;
+      if (s.retries && Date.now() - s.lastErr > HLS_HEALTHY_MS) s.retries = 0;
+    });
+    hls.on(Hls.Events.ERROR, (_, data) => {
+      if (!data.fatal || s.hls !== hls) return;
+      s.lastErr = Date.now();
+      const waits = played ? HLS_RETRY_PLAYED : HLS_RETRY_NEW;
+      if (s.retries >= waits.length) {
+        hls.stopLoad();
+        showError(s, errMsg);
+        return;
+      }
+      const wait = waits[s.retries++];
+      if (data.type === Hls.ErrorTypes.MEDIA_ERROR) { hls.recoverMediaError(); return; }
+      // si lo que falló fue la lista (el manifiesto), hay que volver a pedirla: startLoad() no lo hace
+      const D = Hls.ErrorDetails;
+      const manifest = [D.MANIFEST_LOAD_ERROR, D.MANIFEST_LOAD_TIMEOUT, D.MANIFEST_PARSING_ERROR].includes(data.details);
+      setTimeout(() => {
+        if (s.hls !== hls) return;
+        if (manifest) hls.loadSource(url); else hls.startLoad();
+      }, wait);
+    });
+    return hls;
+  }
 
   function start(s) {
     stop(s);
@@ -321,12 +398,20 @@
         ? "https://www.youtube.com/embed/" + encodeURIComponent(ch.videoId) + "?"
         : "https://www.youtube.com/embed/live_stream?channel=" + encodeURIComponent(ch.channelId) + "&";
       f.src = base + "autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0" + origin;
-      // el reproductor de YouTube tarda en estar listo: se reenvía el audio (y la escucha de errores) varias veces
-      const sync = () => { if (s.node === f) { ytListen(s); applyAudio(); } };
+      // el reproductor de YouTube tarda en estar listo (y más con anuncios): se le pide que avise, una vez por
+      // segundo, hasta que contesta; entonces se le manda el sonido (ver el listener de "message")
       f.addEventListener("load", () => {
-        sync();
-        setTimeout(sync, 1500);
-        setTimeout(sync, 4000);
+        if (s.node !== f) return;
+        clearInterval(s.ytTimer);
+        s.ytReady = false;
+        let tries = 0;
+        const ask = () => {
+          if (s.node !== f || s.ytReady || ++tries > 60) { clearInterval(s.ytTimer); return; }
+          ytListen(s);
+          applyAudioTo(s);
+        };
+        ask();
+        s.ytTimer = setInterval(ask, 1000);
       });
       s.media.appendChild(f);
       s.node = f;
@@ -339,7 +424,7 @@
       f.src = ATRES_ORIGIN + "/embed/live/" + encodeURIComponent(ch.slug) + "/";
       // el puente (si está instalado) tarda en arrancar: se le manda el sonido varias veces
       f.addEventListener("load", () => {
-        const sync = () => { if (s.node === f) applyAudio(); };
+        const sync = () => { if (s.node === f) applyAudioTo(s); };
         sync();
         setTimeout(sync, 1500);
         setTimeout(sync, 4000);
@@ -366,21 +451,7 @@
       s.el.classList.add("is-audio");
       if (/\.m3u8(\?|#|$)/i.test(ch.url) && window.Hls && Hls.isSupported()) {
         // radio en HLS (muchas de TDTChannels): hls.js sobre el <audio>
-        const hls = new Hls();
-        s.hls = hls;
-        hls.loadSource(ch.url);
-        hls.attachMedia(a);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => { a.play().catch(() => {}); });
-        hls.on(Hls.Events.ERROR, (_, data) => {
-          if (!data.fatal) return;
-          if (s.retries < 3) {
-            s.retries++;
-            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-            else setTimeout(() => s.hls === hls && hls.startLoad(), 2000);
-          } else {
-            showError(s, "La radio no arranca (¿el stream ha cambiado?).");
-          }
-        });
+        playHls(s, a, ch.url, HLS_AUDIO, "La radio no arranca (¿el stream ha cambiado?).");
       } else {
         a.src = ch.url;
       }
@@ -391,34 +462,25 @@
       v.autoplay = true;
       v.playsInline = true;
       v.controls = false;
-      if (s.pipBtn) {
-        v.addEventListener("enterpictureinpicture", () => s.pipBtn.setAttribute("aria-pressed", "true"));
-        v.addEventListener("leavepictureinpicture", () => s.pipBtn.setAttribute("aria-pressed", "false"));
-      }
+      // en la ventana flotante el vídeo puede verse más grande que su pantallita: ahí no se limita la calidad
+      v.addEventListener("enterpictureinpicture", () => {
+        if (s.pipBtn) s.pipBtn.setAttribute("aria-pressed", "true");
+        if (s.hls && s.node === v) s.hls.capLevelToPlayerSize = false;
+      });
+      v.addEventListener("leavepictureinpicture", () => {
+        if (s.pipBtn) s.pipBtn.setAttribute("aria-pressed", "false");
+        if (s.hls && s.node === v) s.hls.capLevelToPlayerSize = true;
+      });
       v.addEventListener("loadedmetadata", updateMediaSession);
       s.media.appendChild(v);
       s.node = v;
       s.el.classList.add("is-video");
 
       if (window.Hls && Hls.isSupported()) {
-        const hls = new Hls();
-        s.hls = hls;
-        hls.loadSource(ch.url);
-        hls.attachMedia(v);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => { v.play().catch(() => {}); });
-        hls.on(Hls.Events.ERROR, (_, data) => {
-          if (!data.fatal) return;
-          if (s.retries < 3) {
-            s.retries++;
-            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-            else setTimeout(() => s.hls === hls && hls.startLoad(), 2000);
-          } else {
-            showError(s);
-          }
-        });
+        playHls(s, v, ch.url, HLS_VIDEO);
       } else if (v.canPlayType("application/vnd.apple.mpegurl")) {
         v.src = ch.url; // Safari / iOS: HLS nativo
-        v.addEventListener("error", () => showError(s));
+        v.addEventListener("error", () => { if (s.node === v) showError(s); });
         v.play().catch(() => {});
       } else {
         showError(s);
@@ -427,35 +489,46 @@
     applyAudio();
   }
 
+  // Vuelve la conexión: las cadenas que se habían rendido se reintentan solas
+  window.addEventListener("online", () => {
+    screens.forEach((s) => {
+      if (s.i < state.count && s.hls && s.el.classList.contains("has-error")) { s.retries = 0; start(s); }
+    });
+  });
+
   // ---------- Audio: solo suena la pantalla con foco ----------
+  function applyAudioTo(s) {
+    const vol = state.volume;
+    const focused = s.i === state.active && s.i < state.count;
+    const audible = focused && state.interacted && !state.muted && vol > 0;
+    const atres = s.el.classList.contains("is-atres");
+    // Atresplayer: solo se sabe y se controla su sonido si el puente está dentro del reproductor
+    const icon = focused && s.node && (!atres || s.bridged) ? (audible ? "🔊" : "🔇") : "";
+    if (s.audEl.textContent !== icon) s.audEl.textContent = icon;
+    if (!s.node) return;
+
+    if (atres) {
+      if (s.node.contentWindow) {
+        s.node.contentWindow.postMessage({ source: "pantallitas", type: "audio", muted: !audible, volume: vol }, ATRES_ORIGIN);
+      }
+      return;
+    }
+
+    if (s.node.tagName === "VIDEO" || s.node.tagName === "AUDIO") {
+      s.node.volume = vol;
+      s.node.muted = !audible;
+      if (audible) s.node.play().catch(() => {});
+    } else if (s.node.contentWindow) {
+      const send = (func, args) => s.node.contentWindow.postMessage(
+        JSON.stringify({ event: "command", func, args }), "*");
+      send("setVolume", [Math.round(vol * 100)]);
+      send(audible ? "unMute" : "mute", []);
+    }
+  }
+
   function applyAudio() {
     const vol = state.volume;
-    screens.forEach((s) => {
-      const focused = s.i === state.active && s.i < state.count;
-      const audible = focused && state.interacted && !state.muted && vol > 0;
-      const atres = s.el.classList.contains("is-atres");
-      // Atresplayer: solo se sabe y se controla su sonido si el puente está dentro del reproductor
-      s.audEl.textContent = focused && s.node && (!atres || s.bridged) ? (audible ? "🔊" : "🔇") : "";
-      if (!s.node) return;
-
-      if (atres) {
-        if (s.node.contentWindow) {
-          s.node.contentWindow.postMessage({ source: "pantallitas", type: "audio", muted: !audible, volume: vol }, ATRES_ORIGIN);
-        }
-        return;
-      }
-
-      if (s.node.tagName === "VIDEO" || s.node.tagName === "AUDIO") {
-        s.node.volume = vol;
-        s.node.muted = !audible;
-        if (audible) s.node.play().catch(() => {});
-      } else if (s.node.contentWindow) {
-        const send = (func, args) => s.node.contentWindow.postMessage(
-          JSON.stringify({ event: "command", func, args }), "*");
-        send("setVolume", [Math.round(vol * 100)]);
-        send(audible ? "unMute" : "mute", []);
-      }
-    });
+    screens.forEach(applyAudioTo);
 
     // Controles del menú. Hasta el primer gesto el navegador no deja sonar: se enseña el altavoz tachado y la
     // barra a cero, para que se vea que hay que pinchar algo
@@ -485,20 +558,31 @@
     state.volume = Number(volRange.value) / 100;
     if (state.volume > 0) state.muted = false;
     applyAudio();
-    save();
+    saveSoon();
   });
   muteBtn.addEventListener("click", toggleMute);
   // el puente de Atresplayer puede arrancar tarde o el reproductor recrear su <video>: se repite la orden
-  setInterval(() => { if (screens.some((s) => s.el.classList.contains("is-atres"))) applyAudio(); }, 3000);
+  setInterval(() => { screens.forEach((s) => { if (s.el.classList.contains("is-atres")) applyAudioTo(s); }); }, 3000);
 
-  // Primer gesto del usuario: a partir de ahí el navegador permite el sonido
-  const markInteracted = () => {
-    if (state.interacted) { justUnlocked = false; return; }
+  // Primer gesto del usuario: a partir de ahí el navegador permite el sonido. OJO: no todo lo que se toca cuenta.
+  // Con el dedo, apoyarlo (pointerdown) o deslizar no valen: cuenta al levantarlo tras un toque. Y quitar el silencio
+  // antes de tiempo hace que el navegador pare el vídeo. Por eso se le pregunta al navegador (userActivation) y,
+  // si no sabe contestar, se va a lo seguro.
+  const markInteracted = (e) => {
+    if (state.interacted) {
+      if (e.type === "pointerdown" || e.type === "keydown") justUnlocked = false; // empieza otro gesto
+      return;
+    }
+    const ua = navigator.userActivation;
+    const ok = ua
+      ? ua.hasBeenActive
+      : e.type === "pointerdown" ? e.pointerType === "mouse" : e.type !== "keydown" || e.key !== "Escape";
+    if (!ok) return;
     state.interacted = true;
     justUnlocked = !state.muted && state.volume > 0;
     applyAudio();
   };
-  ["pointerdown", "keydown"].forEach((ev) => document.addEventListener(ev, markInteracted, true));
+  ["pointerdown", "pointerup", "keydown", "click"].forEach((ev) => document.addEventListener(ev, markInteracted, true));
 
   // ---------- Foco, asignación y rejilla ----------
   // Sin el puente, de las pantallitas de Atresplayer solo se mantiene en marcha la que tiene el foco;
@@ -530,19 +614,55 @@
     save();
   }
 
+  const focusOn = () => state.focus && state.count > 1;
+  const isAudioId = (id) => !!(byId[id] && byId[id].type === "audio");
+
+  // Una radio nunca ocupa la pantalla grande del modo foco. Si le tocaba, va a un huequito: uno que ya tenga
+  // radio, si no uno vacío y si no el último.
+  function radioSlot() {
+    const small = Array.from({ length: state.count - 1 }, (_, k) => k + 1);
+    const pick = small.find((k) => isAudioSlot(k)) || small.find((k) => !state.slots[k]) || state.count - 1;
+    return pick;
+  }
+
+  // Devuelve la casilla en la que ha quedado la cadena (puede no ser la pedida: ver radioSlot)
   function assign(i, id) {
+    let moved = false;
+    if (id && i === 0 && focusOn() && isAudioId(id)) {
+      i = radioSlot();
+      moved = state.active === 0;
+      if (moved) state.active = i; // el foco (y el sonido) se van con la radio a su huequito
+    }
     state.slots[i] = id;
     screens[i].retries = 0;
     start(screens[i]);
+    if (moved) syncAtres();
+    screens.forEach((s) => s.el.classList.toggle("active", s.i === state.active));
     placeFocus();
+    applyAudio();
     renderBadges();
     save();
+    return i;
+  }
+
+  // Si al entrar en modo foco (o al abrir la página) la grande tiene una radio, se cambia por la primera
+  // pantallita con imagen (o, si no hay, por una vacía). El foco se va con lo que se mueve.
+  function fixRadioInBig() {
+    if (!focusOn() || !isAudioSlot(0)) return;
+    const small = Array.from({ length: state.count - 1 }, (_, k) => k + 1);
+    const j = small.find((k) => state.slots[k] && !isAudioSlot(k)) || small.find((k) => !state.slots[k]);
+    if (!j) return; // todo son radios: no hay nada mejor que poner
+    if (state.active === 0) state.active = j;
+    else if (state.active === j) state.active = 0;
+    swap(0, j);
   }
 
   // Intercambia dos pantallitas SIN recargarlas: los reproductores no se tocan (un iframe se reiniciaría y en
   // Atresplayer habría que aceptar los términos y pulsar «Directo» otra vez). Lo que cambia es qué casilla
   // ocupa cada una. El foco se queda en su casilla (como al elegir una cadena).
   function swap(a, b) {
+    // arrastrando tampoco se cuela una radio en la grande del modo foco
+    if (focusOn() && ((a === 0 && isAudioSlot(b)) || (b === 0 && isAudioSlot(a))) && !isAudioSlot(0)) return;
     [state.slots[a], state.slots[b]] = [state.slots[b], state.slots[a]];
     [screens[a], screens[b]] = [screens[b], screens[a]];
     screens.forEach((s, k) => {
@@ -582,7 +702,7 @@
       }
     });
     if (state.active >= state.count) state.active = state.count - 1;
-    resetOrder();
+    fixRadioInBig();
     placeFocus();
     setActive(state.active, false); // al arrancar o cambiar el número de pantallitas no se mueve nada
     [...countEl.children].forEach((b) => b.classList.toggle("on", Number(b.dataset.count) === state.count));
@@ -612,18 +732,13 @@
 
   // El número de cada pantallita lo da su casilla: la 1 es siempre la grande, la columna de la derecha va de arriba
   // abajo (2, 3, 4...) y la fila de abajo de izquierda a derecha. Lo que cambia de sitio es el contenido (setActive).
-  function resetOrder() {
-    state.order = Array.from({ length: state.count }, (_, k) => k);
-  }
-
   function placeFocus() {
-    const on = state.focus && state.count > 1; // con una sola pantallita no hay nada que enfocar
+    const on = focusOn(); // con una sola pantallita no hay nada que enfocar
     wall.classList.toggle("focus", on);
     focusBtn.setAttribute("aria-pressed", String(state.focus));
     if (!on) {
       screens.forEach((s) => {
         s.el.style.removeProperty("--area");
-        s.el.style.removeProperty("--ord");
         s.el.classList.remove("is-big");
       });
       return;
@@ -631,19 +746,20 @@
     const g = focusGeometry(state.count);
     wall.style.setProperty("--f-cols", g.cols);
     wall.style.setProperty("--f-rows", g.rows);
-    state.order.forEach((idx, k) => {
-      const el = screens[idx].el;
-      el.style.setProperty("--area", g.areas[k]); // escritorio: sitio en la rejilla
-      el.style.setProperty("--ord", k);           // móvil: orden (la grande va primero)
-      el.classList.toggle("is-big", k === 0);
+    screens.forEach((s, k) => {
+      if (k < state.count) s.el.style.setProperty("--area", g.areas[k]); // escritorio: sitio en la rejilla
+      else s.el.style.removeProperty("--area");
+      s.el.classList.toggle("is-big", k === 0); // móvil: la grande va arriba, a todo el ancho
     });
   }
 
   function setFocusMode(on) {
     state.focus = on;
-    resetOrder();
     placeFocus();
-    if (on) setActive(state.active); // la que tiene el foco pasa a la casilla grande
+    if (on) {
+      setActive(state.active); // la que tiene el foco pasa a la casilla grande
+      fixRadioInBig();
+    }
     save();
   }
 
@@ -694,14 +810,18 @@
   }
 
   // Metadatos de reproducción: nombre de la cadena con foco, para que el navegador vea un reproductor
+  let lastMediaTitle = null;
   function updateMediaSession() {
     syncPipBtn();
     try {
       if (!("mediaSession" in navigator)) return;
       const v = pickPipVideo();
       const s = v && screens.find((x) => x.node === v);
+      const title = (s && s.nameEl.textContent) || "Pantallitas";
+      if (title === lastMediaTitle) return;
+      lastMediaTitle = title;
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: (s && s.nameEl.textContent) || "Pantallitas",
+        title,
         artist: "Pantallitas",
         artwork: [{ src: "logo.svg", sizes: "any", type: "image/svg+xml" }],
       });
@@ -714,6 +834,43 @@
     const v = autoPipVideo;
     autoPipVideo = null;
     if (document.pictureInPictureElement === v) document.exitPictureInPicture().catch(() => {});
+  });
+  // Pestaña oculta: pasado un rato, las cadenas HLS que no suenan dejan de bajar vídeo (la que tiene el foco y la
+  // de la ventana flotante siguen). Al volver se reanudan y saltan al directo.
+  const PARK_AFTER_MS = 30000;
+  let parkTimer = 0;
+
+  function park() {
+    if (document.visibilityState === "visible") return;
+    screens.forEach((s) => {
+      if (!s.hls || s.parked || s.i === state.active || s.node === document.pictureInPictureElement) return;
+      if (s.el.classList.contains("has-error")) return;
+      s.parked = true;
+      s.hls.stopLoad();
+      s.node.pause();
+    });
+  }
+
+  function unpark() {
+    screens.forEach((s) => {
+      if (!s.parked) return;
+      s.parked = false;
+      const hls = s.hls, media = s.node;
+      if (!hls || !media) return;
+      hls.once(Hls.Events.LEVEL_UPDATED, () => { // con la lista ya refrescada se sabe dónde está el directo
+        if (s.hls !== hls || s.parked) return;
+        const live = hls.liveSyncPosition;
+        if (typeof live === "number" && isFinite(live) && live > media.currentTime) media.currentTime = live;
+      });
+      hls.startLoad();
+      media.play().catch(() => {});
+    });
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    clearTimeout(parkTimer);
+    if (document.visibilityState === "visible") unpark();
+    else parkTimer = setTimeout(park, PARK_AFTER_MS);
   });
   // los eventos de imagen en imagen se disparan en el <video> y suben hasta el documento
   document.addEventListener("enterpictureinpicture", syncPipBtn, true);
@@ -760,6 +917,31 @@
 
   function saveFavs() {
     try { localStorage.setItem(FAVS_KEY, JSON.stringify(favs)); } catch { /* sin almacenamiento */ }
+    saveKnown();
+  }
+
+  // Las cadenas de Tele y Radio se identifican por su nombre en TDTChannels. Si allí la renombran o la retiran,
+  // desaparecería de tus pantallitas y de Favs sin avisar. Para que no pase, se guarda una copia de las que tienes
+  // en uso; si la lista ya no la trae, se sigue usando la copia (y si ya no emite, la pantallita lo dirá).
+  let knownJson = null;
+  let knownReady = false; // hasta leer las listas y la copia no se escribe (se machacaría con una vacía)
+  function saveKnown() {
+    if (!knownReady) return;
+    const ids = new Set([...state.slots, ...(state.pinned ? state.pinned.slots : []), ...favs]);
+    const known = [...ids].map((id) => byId[id]).filter((c) => c && c.kind && isPlayable(c)); // kind: solo las de TDTChannels
+    const json = JSON.stringify(known);
+    if (json === knownJson) return;
+    knownJson = json;
+    try { localStorage.setItem(KNOWN_KEY, json); } catch { /* sin almacenamiento */ }
+  }
+  function loadKnown() {
+    const a = read(KNOWN_KEY);
+    knownReady = true;
+    if (!Array.isArray(a)) return;
+    a.forEach((c) => {
+      if (c && typeof c === "object" && typeof c.id === "string" && typeof c.name === "string" &&
+          (c.kind === "tv" || c.kind === "radio") && !byId[c.id] && isPlayable(c)) byId[c.id] = c;
+    });
   }
   function toggleFav(id) {
     const i = favs.indexOf(id);
@@ -893,7 +1075,14 @@
       badges.className = "badges";
       b.appendChild(badges);
       b.draggable = true;
-      b.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", ch.id));
+      b.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", ch.id);
+        app.classList.add("is-dragging"); // que el iframe de la pantallita con foco no se trague el "soltar"
+      });
+      b.addEventListener("dragend", () => {
+        app.classList.remove("is-dragging");
+        screens.forEach((x) => x.el.classList.remove("dragover"));
+      });
       // La cadena va a la pantalla con foco, pasa a oírse y el foco se queda en ese hueco
       b.addEventListener("click", () => assign(state.active, ch.id));
     }
@@ -1016,7 +1205,7 @@
   // Pantalla completa de toda la app (rejilla + menú), no de un stream suelto.
   // Así el menú se puede sacar y esconder también en pantalla completa.
   function toggleAppFullscreen() {
-    if (document.fullscreenElement === app) document.exitFullscreen();
+    if (document.fullscreenElement === app) document.exitFullscreen().catch(() => {});
     else if (app.requestFullscreen) app.requestFullscreen().catch(() => {});
   }
   if (!app.requestFullscreen) fsBtn.hidden = true; // p. ej. iPhone
@@ -1032,7 +1221,7 @@
     if (e.ctrlKey || e.metaKey || e.altKey || infoDlg.open) return;
     const t = e.target;
     if (t && (t.tagName === "TEXTAREA" || t.tagName === "SELECT" || (t.tagName === "INPUT" && t.type !== "range"))) return;
-    const k = e.key.toLowerCase();
+    const k = String(e.key || "").toLowerCase();
     const n = Number(k);
     if (n >= 1 && n <= MAX) setActive(n - 1);
     else if (k === "m") toggleMute();
@@ -1048,6 +1237,7 @@
   syncPinBtn();
   listSel.value = state.view;
   Object.keys(catalogs).forEach(loadCatalog);
+  loadKnown(); // después de las listas: lo que ellas traen manda sobre la copia
   sanitizeSlots();
   renderList();
   layout();
