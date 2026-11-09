@@ -31,7 +31,6 @@
   // «Creator»: la lista personal (channels.js), con los enlaces a mano. Las de TDTChannels se añaden después.
   const byId = Object.fromEntries(CHANNELS.map((c) => [c.id, c]));
   const isPlayable = (c) => !!(c.url || c.channelId || c.videoId || c.slug);
-  const isAudioSlot = (i) => !!(byId[state.slots[i]] && byId[state.slots[i]].type === "audio"); // radio: sin imagen
 
   // ---------- Estado ----------
   function read(key) {
@@ -55,8 +54,11 @@
       focus: p.focus !== false,
     };
   }
+  // La primera vez (sin nada guardado): 4 pantallitas, sin modo foco, con cuatro cadenas de Creator
+  const FIRST_RUN = { count: 4, focus: false, active: 0, slots: ["24h", "sky-news", "cnn", "la-septima"] };
+  const first = Object.keys(saved).length === 0;
   const pin = cleanPin(saved.pinned);
-  const base = pin ? { ...saved, ...pin } : saved; // con el orden guardado, mandan sus valores
+  const base = pin ? { ...saved, ...pin } : first ? FIRST_RUN : saved; // con el orden guardado, mandan sus valores
 
   const state = {
     count: COUNTS.includes(base.count) ? base.count : 6,
@@ -72,7 +74,7 @@
     volume: clamp01(saved.volume, 0.8),
     muted: saved.muted === true,
     pinned: pin,        // orden guardado (o null)
-    order: [],          // modo foco: order[0] es la pantalla grande
+    order: [],          // modo foco: order[k] es la casilla que va en el hueco k (la 0 es la grande)
     interacted: false,  // el navegador no deja sonar hasta el primer gesto
   };
 
@@ -514,7 +516,6 @@
     if (i < 0 || i >= state.count) return;
     state.active = i;
     syncAtres();
-    if (state.focus && !isAudioSlot(i)) promote(i); // una radio no se pone en grande: no tiene imagen
     screens.forEach((s) => s.el.classList.toggle("active", s.i === i));
     applyAudio();
     save();
@@ -599,25 +600,10 @@
     };
   }
 
+  // El número de cada pantallita lo da su casilla, no su contenido: la 1 es siempre la grande, la columna de la
+  // derecha va de arriba abajo (2, 3, 4...) y la fila de abajo de izquierda a derecha. Dar el foco a otra no la mueve.
   function resetOrder() {
     state.order = Array.from({ length: state.count }, (_, k) => k);
-    const p = state.order.indexOf(state.active);
-    if (p > 0) [state.order[0], state.order[p]] = [state.order[p], state.order[0]];
-  }
-
-  // La pantalla enfocada pasa a ser la grande y la grande ocupa su hueco
-  function promote(i) {
-    const p = state.order.indexOf(i);
-    if (p > 0) [state.order[0], state.order[p]] = [state.order[p], state.order[0]];
-    placeFocus();
-  }
-
-  // Una radio no debe ocupar la casilla grande: si le toca, cede el sitio a una pantallita con imagen
-  function keepRadioOutOfBig() {
-    const big = state.order[0];
-    if (!isAudioSlot(big)) return;
-    const p = state.order.findIndex((idx) => state.slots[idx] && !isAudioSlot(idx));
-    if (p > 0) [state.order[0], state.order[p]] = [state.order[p], state.order[0]];
   }
 
   function placeFocus() {
@@ -632,7 +618,6 @@
       });
       return;
     }
-    keepRadioOutOfBig();
     const g = focusGeometry(state.count);
     wall.style.setProperty("--f-cols", g.cols);
     wall.style.setProperty("--f-rows", g.rows);
