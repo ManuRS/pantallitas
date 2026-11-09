@@ -31,6 +31,7 @@
   // «Creator»: la lista personal (channels.js), con los enlaces a mano. Las de TDTChannels se añaden después.
   const byId = Object.fromEntries(CHANNELS.map((c) => [c.id, c]));
   const isPlayable = (c) => !!(c.url || c.channelId || c.videoId || c.slug);
+  const isAudioSlot = (i) => !!(byId[state.slots[i]] && byId[state.slots[i]].type === "audio"); // radio: sin imagen
 
   // ---------- Estado ----------
   function read(key) {
@@ -512,11 +513,19 @@
     });
   }
 
-  function setActive(i) {
+  // En modo foco, la pantallita elegida se cambia de sitio con la grande: pasa a ser la 1 y la que estaba
+  // pasa a ocupar su casilla (el número lo marca la casilla, así que los números se intercambian con ellas).
+  // Una radio no se pone en grande: no tiene imagen. promote=false: solo se da el foco, sin mover nada.
+  function setActive(i, promote = true) {
     if (i < 0 || i >= state.count) return;
-    state.active = i;
+    if (promote && state.focus && state.count > 1 && i !== 0 && !isAudioSlot(i)) {
+      state.active = 0; // el foco se va con lo que se mueve
+      swap(i, 0);
+    } else {
+      state.active = i;
+    }
     syncAtres();
-    screens.forEach((s) => s.el.classList.toggle("active", s.i === i));
+    screens.forEach((s) => s.el.classList.toggle("active", s.i === state.active));
     applyAudio();
     save();
   }
@@ -542,6 +551,7 @@
       s.numEl.textContent = k + 1;
       s.emptyEl.firstChild.nodeValue = "Pantalla " + (k + 1);
     });
+    screens.forEach((s) => s.el.classList.toggle("active", s.i === state.active)); // el halo se queda en la casilla con foco
     placeFocus();
     syncAtres();   // sin puente, la que acaba en la casilla con foco se reanuda y la otra se pausa
     applyAudio();  // suena la que ha quedado en la casilla con foco
@@ -574,7 +584,7 @@
     if (state.active >= state.count) state.active = state.count - 1;
     resetOrder();
     placeFocus();
-    setActive(state.active);
+    setActive(state.active, false); // al arrancar o cambiar el número de pantallitas no se mueve nada
     [...countEl.children].forEach((b) => b.classList.toggle("on", Number(b.dataset.count) === state.count));
     renderBadges();
     save();
@@ -600,8 +610,8 @@
     };
   }
 
-  // El número de cada pantallita lo da su casilla, no su contenido: la 1 es siempre la grande, la columna de la
-  // derecha va de arriba abajo (2, 3, 4...) y la fila de abajo de izquierda a derecha. Dar el foco a otra no la mueve.
+  // El número de cada pantallita lo da su casilla: la 1 es siempre la grande, la columna de la derecha va de arriba
+  // abajo (2, 3, 4...) y la fila de abajo de izquierda a derecha. Lo que cambia de sitio es el contenido (setActive).
   function resetOrder() {
     state.order = Array.from({ length: state.count }, (_, k) => k);
   }
@@ -633,6 +643,7 @@
     state.focus = on;
     resetOrder();
     placeFocus();
+    if (on) setActive(state.active); // la que tiene el foco pasa a la casilla grande
     save();
   }
 
