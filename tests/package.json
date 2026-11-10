@@ -1,0 +1,13 @@
+{
+  "name": "pantallitas-tests",
+  "private": true,
+  "description": "Pruebas de Pantallitas en Chrome sin interfaz, con streams HLS locales",
+  "scripts": {
+    "test": "node run.js",
+    "test:rapidas": "node run.js rapidas",
+    "test:lentas": "node run.js lentas"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0"
+  }
+}
