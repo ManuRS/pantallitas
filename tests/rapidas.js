@@ -91,12 +91,14 @@ const { BASE, launch, snapshot, stored, sleep, screenAt, check, summary } = requ
   console.log("Imagen en imagen con YouTube en la grande (ventana flotante de documento)");
   const pipInfo = () => page.evaluate(() => {
     const w = window.documentPictureInPicture && documentPictureInPicture.window;
-    const f = w && w.document.querySelector("iframe");
+    const h = w && w.document.querySelector("iframe"); // pip.html, con el reproductor de YouTube dentro
+    const f = h && h.contentDocument && h.contentDocument.querySelector("iframe");
     const big = [...document.querySelectorAll(".screen")].find((el) => el.style.getPropertyValue("--pos") === "0");
     return {
       open: !!w, src: f ? f.src : "", video: !!document.pictureInPictureElement,
       bigInPip: big.classList.contains("in-pip"), bigHasFrame: !!big.querySelector("iframe"),
       pressed: document.getElementById("pipBtn").getAttribute("aria-pressed"),
+      holder: h ? h.src : "", bigErr: big.classList.contains("has-error") ? big.querySelector(".err-msg").textContent : "",
     };
   });
   check("con YouTube en la grande, el botón del menú está disponible", !(await page.locator("#pipBtn").isDisabled()));
@@ -104,10 +106,11 @@ const { BASE, launch, snapshot, stored, sleep, screenAt, check, summary } = requ
   await sleep(2500);
   let pi = await pipInfo();
   check("sale la grande (YouTube), no otra pantallita", pi.open && pi.src.includes("UCslow") && !pi.video, pi);
+  check("YouTube no da el error 153 en la ventana flotante (le llega desde qué página va)", !pi.err153 && !pi.bigErr, pi);
   check("su casilla avisa de que está en la ventana flotante", pi.bigInPip && !pi.bigHasFrame && pi.pressed === "true", pi);
   await sleep(8500); // el YouTube de pega tarda 7 s tras recargarse en la ventana
   const pipFrame = context.pages().flatMap((pg) => pg.frames()).find((f) => f.url().includes("UCslow"));
-  const pipCmds = pipFrame ? await pipFrame.evaluate(() => window.cmds) : null;
+  const pipCmds = pipFrame ? await pipFrame.evaluate(() => (window.err153 ? ["error 153"] : window.cmds)) : null;
   check("en la ventana flotante también recibe el sonido", !!pipCmds && pipCmds.includes("unMute"), pipCmds);
   await page.click("#pipBtn");
   await sleep(800);

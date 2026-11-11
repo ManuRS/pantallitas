@@ -258,11 +258,22 @@
     const css = win.document.createElement("style");
     css.textContent = "html,body{margin:0;height:100%;background:#000;overflow:hidden}iframe{display:block;width:100%;height:100%;border:0}";
     win.document.head.appendChild(css);
-    win.addEventListener("message", onFrameMessage); // YouTube avisa a la ventana en la que está
+    // La ventana es un documento en blanco: si YouTube se cargara directamente ahí no sabría desde qué página va
+    // (error 153). Se mete dentro de pip.html, una página vacía de esta web, que sí se lo dice.
+    const holder = win.document.createElement("iframe");
+    holder.src = new URL("pip.html", location.href).href;
+    holder.title = s.nameEl.textContent || "Pantallitas";
+    holder.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
     docPip = { win, s, f };
-    win.document.body.appendChild(f);
     s.el.classList.add("in-pip");
     syncPipState();
+    holder.addEventListener("load", () => {
+      if (!docPip || docPip.win !== win || s.node !== f) return;
+      const hw = holder.contentWindow;
+      hw.addEventListener("message", onFrameMessage); // YouTube avisa a la página en la que está
+      hw.document.body.appendChild(f);
+    }, { once: true });
+    win.document.body.appendChild(holder);
     win.addEventListener("pagehide", () => {
       if (!docPip || docPip.win !== win) return;
       docPip = null;

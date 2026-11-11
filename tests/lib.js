@@ -45,6 +45,15 @@ const fakeYouTube = (delay) => `<!doctype html><body style="margin:0;background:
   }, ${delay});
 </script></body>`;
 
+// YouTube de pega cuando no le llega el Referer: contesta a "listening" con el error 153
+const fakeYouTube153 = () => `<!doctype html><body>153<script>
+  window.cmds = []; window.err153 = true;
+  addEventListener("message", (e) => {
+    let d; try { d = JSON.parse(e.data); } catch { return; }
+    if (d.event === "listening") parent.postMessage(JSON.stringify({ event: "onError", id: d.id, info: 153 }), "*");
+  });
+</script></body>`;
+
 // Reproductor de Atresplayer de pega, con el puente de sonido real dentro
 const fakeAtres = () => `<!doctype html><body style="margin:0;background:#030;color:#fff">ATRES<video id="v"></video>
 <script>${fs.readFileSync(REPO + "/puente/puente-pantallitas.user.js", "utf8")}</script></body>`;
@@ -71,6 +80,8 @@ async function launch(opts = {}) {
   await context.route("**/channels.js*", (r) => r.fulfill({ contentType: "text/javascript", body: "const CHANNELS = " + JSON.stringify(TEST_CHANNELS) + ";" }));
   await context.route("https://www.youtube.com/embed/**", (r) => {
     const ch = new URL(r.request().url()).searchParams.get("channel");
+    // como el de verdad: sin saber desde qué página se incrusta (Referer), error 153
+    if (!r.request().headers()["referer"]) return r.fulfill({ contentType: "text/html", body: fakeYouTube153() });
     r.fulfill({ contentType: "text/html", body: fakeYouTube(fx.ytDelay[ch] ?? 300) });
   });
   await context.route("https://www.atresplayer.com/embed/**", (r) => r.fulfill({ contentType: "text/html", body: fakeAtres() }));
