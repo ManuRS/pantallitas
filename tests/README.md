@@ -27,7 +27,7 @@ npm run test:lentas   # solo las lentas
 
 | Fichero | Qué mira |
 | --- | --- |
-| `rapidas.js` | Arranque, primer gesto y sonido, calidad según el tamaño de la pantallita, teclado y modo foco, la radio fuera de la pantalla grande, YouTube que tarda en estar listo, arrastres (de la lista y entre pantallitas), puente de Atresplayer, copia de las cadenas de Tele/Radio cuando TDTChannels las renombra, y «Guardar orden» |
+| `rapidas.js` | Arranque, primer gesto y sonido, calidad según el tamaño de la pantallita, teclado y modo foco, la radio fuera de la pantalla grande, YouTube que tarda en estar listo, imagen en imagen de YouTube, arrastres (de la lista y entre pantallitas), puente de Atresplayer, copia de las cadenas de Tele/Radio cuando TDTChannels las renombra, y «Guardar orden» |
 | `lentas.js` | Errores de HLS (manifiesto que falla, cadena muerta, reintentos en sesiones largas, corte de red de 12 s), pestaña oculta (parar y volver al directo) y móvil (deslizar como primer gesto, toque, modo foco) |
 
 Lo demás es infraestructura: `run.js` lo orquesta, `server.js` sirve el repo y los streams (y sabe provocar fallos) y

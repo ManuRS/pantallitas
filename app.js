@@ -116,6 +116,9 @@
   const pipBtn = document.getElementById("pipBtn");
   const pinBtn = document.getElementById("pinBtn");
 
+  // ventana flotante de documento (Chrome/Edge de escritorio): ahí sí cabe el iframe de YouTube
+  const DOC_PIP = "documentPictureInPicture" in window && window.isSecureContext;
+
   const screens = Array.from({ length: MAX }, (_, i) => createScreen(i));
 
   function createScreen(i) {
@@ -172,7 +175,7 @@
     });
     el.querySelector(".b-clear").addEventListener("click", (e) => { e.stopPropagation(); assign(s.i, null); });
     s.touchBtn.addEventListener("click", (e) => { e.stopPropagation(); el.classList.toggle("no-touch"); syncTouch(s); });
-    if (document.pictureInPictureEnabled) {
+    if (document.pictureInPictureEnabled || DOC_PIP) {
       s.pipBtn.addEventListener("click", (e) => { e.stopPropagation(); togglePip(s); });
     } else {
       s.pipBtn.remove(); // el navegador no tiene imagen en imagen (p. ej. Firefox móvil)
@@ -224,17 +227,60 @@
   }
 
   // ---------- Reproducción ----------
-  // Imagen en imagen: solo las cadenas de vídeo (HLS). YouTube y Atresplayer van en un iframe de otro dominio
-  // y el navegador no deja sacarlas desde aquí.
+  // Imagen en imagen. Las cadenas de vídeo (HLS) usan la normal. YouTube va en un iframe de otro dominio, que no
+  // se puede sacar así: en Chrome/Edge de escritorio se mete el iframe en una ventana flotante de documento
+  // (Document Picture-in-Picture). Al entrar y al salir el reproductor se recarga (es un directo: no se pierde nada).
+  // Atresplayer no: su puente de sonido no se fía de la ventana flotante.
+  let docPip = null; // { win, s, f } mientras YouTube está en la ventana flotante
+
+  const isVideoPip = (s) => !!(s && s.node && s.node.tagName === "VIDEO" && s.node.readyState > 0 && document.pictureInPictureEnabled);
+  const isYtPip = (s) => !!(DOC_PIP && s && s.node && s.el.classList.contains("is-yt"));
+  const canPip = (s) => s.i < state.count && (isVideoPip(s) || isYtPip(s));
+  const inPip = (s) => !!(s && s.node && (document.pictureInPictureElement === s.node || (docPip && docPip.s === s)));
+
+  function closePip() {
+    if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
+    if (docPip) docPip.win.close();
+  }
+
+  async function openPip(s) {
+    if (isVideoPip(s)) {
+      if (docPip) docPip.win.close();
+      return s.node.requestPictureInPicture();
+    }
+    if (!isYtPip(s)) return undefined;
+    if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
+    if (docPip) docPip.win.close();
+    const f = s.node;
+    const win = await window.documentPictureInPicture.requestWindow({ width: 640, height: 360 });
+    if (s.node !== f) { win.close(); return undefined; } // mientras se abría, la pantallita cambió de cadena
+    win.document.title = s.nameEl.textContent || "Pantallitas";
+    const css = win.document.createElement("style");
+    css.textContent = "html,body{margin:0;height:100%;background:#000;overflow:hidden}iframe{display:block;width:100%;height:100%;border:0}";
+    win.document.head.appendChild(css);
+    win.addEventListener("message", onFrameMessage); // YouTube avisa a la ventana en la que está
+    docPip = { win, s, f };
+    win.document.body.appendChild(f);
+    s.el.classList.add("in-pip");
+    syncPipState();
+    win.addEventListener("pagehide", () => {
+      if (!docPip || docPip.win !== win) return;
+      docPip = null;
+      s.el.classList.remove("in-pip");
+      if (s.node === f) s.media.appendChild(f); // vuelve a su pantallita
+      syncPipState();
+    });
+    return win;
+  }
+
   function togglePip(s) {
-    const v = s.node;
-    if (!v || v.tagName !== "VIDEO") return;
-    if (document.pictureInPictureElement === v) document.exitPictureInPicture().catch(() => {});
-    else v.requestPictureInPicture().catch(() => {});
+    if (inPip(s)) closePip();
+    else openPip(s).catch(() => {});
   }
 
   function stop(s) {
     if (s.node && document.pictureInPictureElement === s.node) document.exitPictureInPicture().catch(() => {});
+    if (docPip && docPip.s === s) docPip.win.close();
     if (s.hls) { s.hls.destroy(); s.hls = null; }
     clearInterval(s.ytTimer);
     s.ytReady = false;
@@ -245,7 +291,7 @@
     }
     s.media.innerHTML = "";
     s.bridged = false;
-    s.el.classList.remove("has-error", "is-audio", "is-atres", "is-suspended", "no-touch", "is-video");
+    s.el.classList.remove("has-error", "is-audio", "is-atres", "is-suspended", "no-touch", "is-video", "is-yt", "in-pip");
     if (s.pipBtn) s.pipBtn.setAttribute("aria-pressed", "false");
     syncTouch(s);
   }
@@ -283,7 +329,7 @@
     }
   }
 
-  window.addEventListener("message", (e) => {
+  function onFrameMessage(e) {
     if (e.origin === ATRES_ORIGIN) { // el puente de sonido avisa desde dentro del reproductor de Atresplayer
       const s = screens.find((x) => x.node && x.node.contentWindow === e.source);
       const d = e.data;
@@ -309,7 +355,8 @@
       applyAudioTo(s);
     }
     if (d.event === "onError") showError(s, YT_ERRORS[d.info] || `YouTube devolvió el error ${d.info}.`);
-  });
+  }
+  window.addEventListener("message", onFrameMessage);
 
   // hls.js: cada pantallita baja la calidad que le cabe (las pequeñas, poca; la grande, toda), guarda poco vídeo
   // en memoria y, si se queda muy atrás del directo, vuelve a él
@@ -415,6 +462,7 @@
       });
       s.media.appendChild(f);
       s.node = f;
+      s.el.classList.add("is-yt");
     } else if (ch.type === "atres") {
       // Reproductor oficial de Atresplayer: trae sus propios términos, botón «Directo» y sonido,
       // que esta página no puede tocar (es de otro origen)
@@ -764,24 +812,43 @@
   }
 
   // ---------- Imagen en imagen desde el menú ----------
-  // El botón del menú saca (o cierra) la ventana flotante de la pantallita con foco; si esa no es un vídeo,
-  // la de la primera pantallita de vídeo visible.
+  // El botón del menú saca (o cierra) la ventana flotante de la pantallita con foco. Solo si la del foco no tiene
+  // imagen (radio, vacía) se saca otra: la primera que se pueda. Si la del foco tiene imagen pero el navegador no
+  // deja sacarla (YouTube fuera de Chrome/Edge, Atresplayer), no se saca otra en su lugar.
+  function pickPipScreen() {
+    const f = screens[state.active];
+    if (f && canPip(f)) return f;
+    if (f && f.node && (f.node.tagName === "VIDEO" || f.node.tagName === "IFRAME")) return null;
+    return screens.find(canPip) || null;
+  }
+  // Para Media Session (título, play/pausa): el <video> de la pantallita elegida, si lo es
   function pickPipVideo() {
-    const withVideo = (s) => s && s.i < state.count && s.node && s.node.tagName === "VIDEO" && s.node.readyState > 0;
-    const s = withVideo(screens[state.active]) ? screens[state.active] : screens.find(withVideo);
-    return s ? s.node : null;
+    const s = pickPipScreen();
+    return s && s.node.tagName === "VIDEO" ? s.node : null;
   }
 
   function togglePipMenu() {
-    if (document.pictureInPictureElement) { document.exitPictureInPicture().catch(() => {}); return; }
-    const v = pickPipVideo();
-    if (v) v.requestPictureInPicture().catch(() => {});
+    if (document.pictureInPictureElement || docPip) { closePip(); return; }
+    const s = pickPipScreen();
+    if (s) openPip(s).catch(() => {});
   }
 
+  const PIP_TITLE = pipBtn.title;
   function syncPipBtn() {
-    const on = !!document.pictureInPictureElement;
+    const on = !!document.pictureInPictureElement || !!docPip;
     pipBtn.setAttribute("aria-pressed", String(on));
-    pipBtn.disabled = !on && !pickPipVideo(); // sin ninguna cadena de vídeo no hay nada que sacar
+    pipBtn.disabled = !on && !pickPipScreen();
+    const f = screens[state.active];
+    pipBtn.title = pipBtn.disabled && f && f.node && f.node.tagName === "IFRAME"
+      ? (f.el.classList.contains("is-yt")
+        ? "Este navegador no deja sacar YouTube a una ventana flotante (en Chrome o Edge de escritorio sí)"
+        : "Atresplayer no se puede sacar a una ventana flotante")
+      : PIP_TITLE;
+  }
+
+  function syncPipState() {
+    screens.forEach((s) => { if (s.pipBtn) s.pipBtn.setAttribute("aria-pressed", String(inPip(s))); });
+    syncPipBtn();
   }
 
   // Imagen en imagen automática de Chrome: se deja registrada la acción de Media Session por si el navegador la usa
@@ -790,12 +857,12 @@
 
   function setupMediaSession() {
     try {
-      if (!("mediaSession" in navigator) || !document.pictureInPictureEnabled) return;
+      if (!("mediaSession" in navigator) || !(document.pictureInPictureEnabled || DOC_PIP)) return;
       const ms = navigator.mediaSession;
       ms.setActionHandler("enterpictureinpicture", () => {
-        const v = pickPipVideo();
-        if (!v || document.pictureInPictureElement) return undefined;
-        return v.requestPictureInPicture().then((w) => { autoPipVideo = v; return w; });
+        const s = pickPipScreen();
+        if (!s || document.pictureInPictureElement || docPip) return undefined;
+        return openPip(s).then((w) => { if (w) autoPipVideo = s.node; return w; });
       });
       ms.setActionHandler("play", () => {
         const v = pickPipVideo();
@@ -834,6 +901,7 @@
     const v = autoPipVideo;
     autoPipVideo = null;
     if (document.pictureInPictureElement === v) document.exitPictureInPicture().catch(() => {});
+    else if (docPip && docPip.f === v) docPip.win.close();
   });
   // Pestaña oculta: pasado un rato, las cadenas HLS que no suenan dejan de bajar vídeo (la que tiene el foco y la
   // de la ventana flotante siguen). Al volver se reanudan y saltan al directo.
@@ -874,7 +942,7 @@
   });
   // los eventos de imagen en imagen se disparan en el <video> y suben hasta el documento
   document.addEventListener("enterpictureinpicture", syncPipBtn, true);
-  document.addEventListener("leavepictureinpicture", () => { autoPipVideo = null; syncPipBtn(); }, true);
+  document.addEventListener("leavepictureinpicture", () => { if (!docPip) autoPipVideo = null; syncPipBtn(); }, true);
 
   // ---------- Guardar orden ----------
   function syncPinBtn() {
@@ -1232,7 +1300,8 @@
 
   // Arranque: se leen las listas guardadas, se monta la rejilla y, si hace falta, se bajan las nuevas por detrás
   setMenuHidden(state.menuHidden);
-  pipBtn.hidden = !document.pictureInPictureEnabled; // sin imagen en imagen en el navegador, no se enseña
+  pipBtn.hidden = !document.pictureInPictureEnabled && !DOC_PIP; // sin imagen en imagen en el navegador, no se enseña
+  if (DOC_PIP) document.documentElement.classList.add("doc-pip"); // las pantallitas de YouTube enseñan su ⧉
   setupMediaSession();
   syncPinBtn();
   listSel.value = state.view;

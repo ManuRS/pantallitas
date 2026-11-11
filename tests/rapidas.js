@@ -88,6 +88,32 @@ const { BASE, launch, snapshot, stored, sleep, screenAt, check, summary } = requ
   const cmds2 = await ytFrame().evaluate(() => ({ n: window.cmds.length, listening: window.listening }));
   check("y deja de preguntarle una vez ha contestado", cmds2.listening === cmds.listening, [cmds, cmds2]);
 
+  console.log("Imagen en imagen con YouTube en la grande (ventana flotante de documento)");
+  const pipInfo = () => page.evaluate(() => {
+    const w = window.documentPictureInPicture && documentPictureInPicture.window;
+    const f = w && w.document.querySelector("iframe");
+    const big = [...document.querySelectorAll(".screen")].find((el) => el.style.getPropertyValue("--pos") === "0");
+    return {
+      open: !!w, src: f ? f.src : "", video: !!document.pictureInPictureElement,
+      bigInPip: big.classList.contains("in-pip"), bigHasFrame: !!big.querySelector("iframe"),
+      pressed: document.getElementById("pipBtn").getAttribute("aria-pressed"),
+    };
+  });
+  check("con YouTube en la grande, el botón del menú está disponible", !(await page.locator("#pipBtn").isDisabled()));
+  await page.click("#pipBtn");
+  await sleep(2500);
+  let pi = await pipInfo();
+  check("sale la grande (YouTube), no otra pantallita", pi.open && pi.src.includes("UCslow") && !pi.video, pi);
+  check("su casilla avisa de que está en la ventana flotante", pi.bigInPip && !pi.bigHasFrame && pi.pressed === "true", pi);
+  await sleep(8500); // el YouTube de pega tarda 7 s tras recargarse en la ventana
+  const pipFrame = context.pages().flatMap((pg) => pg.frames()).find((f) => f.url().includes("UCslow"));
+  const pipCmds = pipFrame ? await pipFrame.evaluate(() => window.cmds) : null;
+  check("en la ventana flotante también recibe el sonido", !!pipCmds && pipCmds.includes("unMute"), pipCmds);
+  await page.click("#pipBtn");
+  await sleep(800);
+  pi = await pipInfo();
+  check("al cerrarla, YouTube vuelve a su pantallita", !pi.open && !pi.bigInPip && pi.bigHasFrame && pi.pressed === "false", pi);
+
   console.log("Arrastrar una cadena de la lista a la pantallita con foco (YouTube)");
   s = await snapshot(page);
   check("la grande tiene foco y es un iframe", s[0].cls.includes("active") && s[0].tag === "IFRAME", s[0]);
