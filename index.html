@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Ver hasta 8 canales de TV a la vez · Pantallitas</title>
+  <title>Pantallitas, hasta 8 teles en directo a la vez</title>
   <meta name="description" content="Mira hasta 8 canales de TV a la vez, gratis y desde el navegador, sin instalar nada. Todas las televisiones juntas para que no te pierdas nada">
   <meta name="theme-color" content="#0f1115">
   <link rel="canonical" href="https://pantallitas.pages.dev/">
@@ -51,7 +51,7 @@
   </script>
 
   <!-- ?v=N: al cambiar style.css o cualquiera de los .js, súbele el número a todos para que nadie se quede con una mezcla de versiones -->
-  <link rel="stylesheet" href="style.css?v=19">
+  <link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
   <div class="app" id="app">
@@ -62,7 +62,7 @@
         <h1>Pantallitas</h1>
         <button type="button" id="hideMenu" class="icon-btn" title="Esconder el menú (H)" aria-label="Esconder el menú">&gt;</button>
       </header>
-      <p class="panel-sub">Hasta 8 canales de televisión a la vez, gratis y sin instalar nada</p>
+      <p class="panel-sub">Hasta 8 canales de televisión a la vez, gratis y sin instalar nada · <button type="button" id="infoBtn" class="link-btn">Más información</button></p>
 
       <section>
         <h2>¿Cuántas pantallitas?</h2>
@@ -103,10 +103,6 @@
         <p id="listInfo" class="list-info" hidden></p>
         <div id="channels" class="channels"></div>
       </section>
-
-      <footer class="panel-foot">
-        <button type="button" id="infoBtn" class="toggle">Información</button>
-      </footer>
     </aside>
 
     <button type="button" id="showMenu" class="menu-tab" title="Sacar el menú (H)" aria-label="Sacar el menú" hidden>&lt;</button>
@@ -135,8 +131,8 @@
 
   <!-- hls.js 1.7.4, copiado en el repo (ver CREDITOS.md): versión fija y sin depender de un CDN -->
   <script src="vendor/hls.min.js?v=1.7.4"></script>
-  <script src="channels.js?v=19"></script>
-  <script src="catalog.js?v=19"></script>
-  <script src="app.js?v=19"></script>
+  <script src="channels.js?v=20"></script>
+  <script src="catalog.js?v=20"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>

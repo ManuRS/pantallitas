@@ -264,6 +264,8 @@ html, body {
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .panel h1 { margin: 0; font-size: 18px; }
 .panel-sub { margin: -6px 0 0; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.link-btn { padding: 0; border: 0; background: none; font: inherit; color: var(--accent); cursor: pointer; }
+.link-btn:hover, .link-btn:focus-visible { text-decoration: underline; }
 .panel h2 {
   margin: 0 0 8px;
   font-size: 12px;
@@ -318,7 +320,6 @@ html, body {
   color: #06121f;
   font-weight: 700;
 }
-.panel-foot .toggle { margin-top: 0; }
 /* los cuatro botones del menú, de dos en dos */
 .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .tools .toggle {
