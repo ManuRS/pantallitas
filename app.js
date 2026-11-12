@@ -277,6 +277,7 @@
     win.addEventListener("pagehide", () => {
       if (!docPip || docPip.win !== win) return;
       docPip = null;
+      if (autoPipVideo === f) autoPipVideo = null;
       s.el.classList.remove("in-pip");
       if (s.node === f) s.media.appendChild(f); // vuelve a su pantallita
       syncPipState();
@@ -906,13 +907,21 @@
     } catch { /* sin Media Session */ }
   }
 
-  // Al volver a la pestaña, se cierra la ventana flotante que sacó la acción automática
+  // Al volver a la pestaña, la ventana flotante que sacó la acción automática la cierra el propio Chrome. Cerrarla
+  // también desde aquí en ese mismo instante chocaba con él: la ventana desaparecía pero el vídeo se quedaba «en
+  // imagen en imagen» (hueco en negro, con sonido). Se le deja hacer y, solo si pasado un momento sigue fuera, se cierra.
+  const AUTO_PIP_CLOSE_MS = 1500;
+  let autoPipTimer = 0;
   document.addEventListener("visibilitychange", () => {
+    clearTimeout(autoPipTimer);
     if (document.visibilityState !== "visible" || !autoPipVideo) return;
     const v = autoPipVideo;
-    autoPipVideo = null;
-    if (document.pictureInPictureElement === v) document.exitPictureInPicture().catch(() => {});
-    else if (docPip && docPip.f === v) docPip.win.close();
+    autoPipTimer = setTimeout(() => {
+      if (document.visibilityState !== "visible" || autoPipVideo !== v) return;
+      autoPipVideo = null;
+      if (document.pictureInPictureElement === v) document.exitPictureInPicture().catch(() => {});
+      else if (docPip && docPip.f === v) docPip.win.close();
+    }, AUTO_PIP_CLOSE_MS);
   });
   // Pestaña oculta: pasado un rato, las cadenas HLS que no suenan dejan de bajar vídeo (la que tiene el foco y la
   // de la ventana flotante siguen). Al volver se reanudan y saltan al directo.
