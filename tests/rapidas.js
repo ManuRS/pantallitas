@@ -111,12 +111,53 @@ const { BASE, launch, snapshot, stored, sleep, screenAt, check, summary } = requ
   await sleep(8500); // el YouTube de pega tarda 7 s tras recargarse en la ventana
   const pipFrame = context.pages().flatMap((pg) => pg.frames()).find((f) => f.url().includes("UCslow"));
   const pipCmds = pipFrame ? await pipFrame.evaluate(() => (window.err153 ? ["error 153"] : window.cmds)) : null;
-  check("en la ventana flotante también recibe el sonido", !!pipCmds && pipCmds.includes("unMute"), pipCmds);
-  check("y se le da al play solo", !!pipCmds && pipCmds.includes("playVideo"), pipCmds);
+  const pipPage = context.pages().find((pg) => pg !== page);
+  const barra = pipPage.locator("button", { hasText: "Pulsa aquí para oír" });
+  const pipTocada = await pipPage.evaluate(() => navigator.userActivation.hasBeenActive);
+  const hayBarra = (await barra.count()) === 1;
+  check("se le da al play solo", !!pipCmds && pipCmds.includes("playVideo"), pipCmds);
+  // según el navegador dé por «pinchada» o no la ventana recién abierta: con sonido, o en silencio y con aviso
+  check("con sonido si la ventana ya cuenta como pinchada; si no, en silencio y con el aviso para oír",
+    pipTocada ? pipCmds.includes("unMute") && !hayBarra : !pipCmds.includes("unMute") && pipCmds.includes("mute") && hayBarra, { pipTocada, hayBarra, pipCmds });
+  if (hayBarra) {
+    await barra.click();
+    await sleep(600);
+    const pipCmds2 = await pipFrame.evaluate(() => window.cmds);
+    check("al pulsar el aviso vuelve el sonido y el aviso se quita", pipCmds2.includes("unMute") && (await barra.count()) === 0, pipCmds2);
+  }
   await page.click("#pipBtn");
   await sleep(800);
   pi = await pipInfo();
   check("al cerrarla, YouTube vuelve a su pantallita", !pi.open && !pi.bigInPip && pi.bigHasFrame && pi.pressed === "false", pi);
+
+  console.log("Ventana flotante en la que nadie ha pinchado (como la que saca Chrome al cambiar de pestaña)");
+  await page.evaluate(() => { // la ventana nueva dice que nadie la ha tocado, hasta que se marque __tocada
+    const d = documentPictureInPicture, orig = d.requestWindow.bind(d);
+    d.requestWindow = async (o) => {
+      const w = await orig(o);
+      Object.defineProperty(w.navigator, "userActivation", { get: () => ({ hasBeenActive: !!w.__tocada }) });
+      return w;
+    };
+  });
+  await page.click("#pipBtn");
+  await sleep(13000);
+  const qPage = context.pages().find((pg) => pg !== page);
+  const qFrame = () => qPage.frames().find((f) => f.url().includes("UCslow"));
+  const qBarra = qPage.locator("button", { hasText: "Pulsa aquí para oír" });
+  let q = await qFrame().evaluate(() => window.cmds);
+  check("arranca sola y en silencio, sin intentar el sonido", q.includes("playVideo") && q.includes("mute") && !q.includes("unMute"), q);
+  check("y enseña el aviso «Pulsa aquí para oír»", (await qBarra.count()) === 1);
+  await qPage.evaluate(() => { window.__tocada = true; }); // un clic en cualquier parte de la ventana
+  await sleep(900);
+  q = await qFrame().evaluate(() => window.cmds);
+  check("al primer clic en la ventana vuelve el sonido y se quita el aviso", q.includes("unMute") && (await qBarra.count()) === 0, q);
+  await page.click("#pipBtn");
+  await sleep(800);
+  pi = await pipInfo();
+  check("y al cerrarla vuelve a su pantallita", !pi.open && pi.bigHasFrame, pi);
+  await sleep(9500);
+  const back = await ytFrame().evaluate(() => window.cmds);
+  check("y de vuelta en su pantallita recupera el sonido", back.includes("unMute"), back);
 
   console.log("Arrastrar una cadena de la lista a la pantallita con foco (YouTube)");
   s = await snapshot(page);

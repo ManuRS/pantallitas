@@ -273,6 +273,8 @@
       hw.addEventListener("message", onFrameMessage); // YouTube avisa a la página en la que está
       hw.document.body.appendChild(f);
       docPip.t = Date.now(); // el reproductor se recarga ahora: desde aquí cuenta el empujón al play
+      if (pipActive(win) === false) pipQuiet(docPip); // nadie ha pinchado en la ventana: ni intentarlo con sonido
+      ytHandshake(s, f);
     }, { once: true });
     win.document.body.appendChild(holder);
     win.addEventListener("pagehide", () => {
@@ -280,7 +282,7 @@
       docPip = null;
       if (autoPipVideo === f) autoPipVideo = null;
       s.el.classList.remove("in-pip");
-      if (s.node === f) s.media.appendChild(f); // vuelve a su pantallita
+      if (s.node === f) { s.media.appendChild(f); ytHandshake(s, f); } // vuelve a su pantallita y se recarga
       syncPipState();
     });
     return win;
@@ -336,6 +338,23 @@
     153: "YouTube no se fía de esta página (error 153). Suele pasar al abrirla como archivo local: ábrela por http(s).",
   };
 
+  // El reproductor de YouTube tarda en estar listo (y más con anuncios): se le pide que avise, una vez por segundo,
+  // hasta que contesta; entonces se le manda el sonido (ver onFrameMessage). Se llama cada vez que el iframe se
+  // (re)carga: al crearlo y al moverlo a la ventana flotante o de vuelta (ahí no siempre salta su evento "load").
+  function ytHandshake(s, f) {
+    if (s.node !== f) return;
+    clearInterval(s.ytTimer);
+    s.ytReady = false;
+    let tries = 0;
+    const ask = () => {
+      if (s.node !== f || s.ytReady || ++tries > 60) { clearInterval(s.ytTimer); return; }
+      ytListen(s);
+      applyAudioTo(s);
+    };
+    ask();
+    s.ytTimer = setInterval(ask, 1000);
+  }
+
   function ytListen(s) {
     if (s.node && s.node.contentWindow) {
       s.node.contentWindow.postMessage(JSON.stringify({ event: "listening", id: s.i, channel: "widget" }), "*");
@@ -371,10 +390,40 @@
     if (docPip && docPip.s === s) ytKick(s, d.info && typeof d.info === "object" ? d.info.playerState : undefined);
   }
 
-  // YouTube en la ventana flotante: al recargarse ahí puede quedarse parado esperando el play (la ventana es nueva
-  // y el navegador no siempre le deja arrancar con sonido). Se le da al play desde aquí; si con sonido no arranca,
-  // se le pide en silencio, que eso el navegador lo deja siempre (el sonido se recupera en el propio reproductor).
+  // YouTube en la ventana flotante: al recargarse ahí se queda esperando el play. Se le da desde aquí. Pero la
+  // ventana es nueva y Chrome no deja que nada suene en ella hasta que alguien pincha dentro (a las cadenas de vídeo
+  // normales no les pasa: su <video> no se recarga, es el mismo de la página). Así que, mientras nadie haya pinchado,
+  // arranca en silencio con un aviso «Pulsa para oír»; al primer clic en la ventana vuelve el sonido.
   const YT_KICK_MS = 15000, YT_KICK_EVERY_MS = 1500, YT_KICKS = 4;
+  const ytSend = (s, func) => {
+    if (s.node && s.node.contentWindow) s.node.contentWindow.postMessage(JSON.stringify({ event: "command", func, args: [] }), "*");
+  };
+  // ¿ha pinchado alguien ya en la ventana flotante? (null: el navegador no lo dice)
+  const pipActive = (win) => { try { return win.navigator.userActivation.hasBeenActive; } catch { return null; } };
+
+  function pipQuiet(p) {
+    if (p.quiet) return;
+    p.quiet = true;
+    const doc = p.win.document;
+    const bar = doc.createElement("button");
+    bar.textContent = "🔇 Pulsa aquí para oír";
+    bar.style.cssText = "position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:9;padding:6px 14px;border:0;" +
+      "border-radius:999px;background:#4da3ff;color:#06121f;font:600 14px system-ui,sans-serif;cursor:pointer;box-shadow:0 2px 10px #000a";
+    const restore = () => {
+      clearInterval(poll);
+      bar.remove();
+      if (docPip !== p || !p.quiet) return;
+      p.quiet = false;
+      applyAudioTo(p.s);
+      ytSend(p.s, "playVideo"); // si el clic cayó sobre el vídeo, YouTube lo habrá pausado
+    };
+    bar.addEventListener("click", restore);
+    // un clic en cualquier parte de la ventana también vale (solo si antes constaba que nadie había pinchado)
+    const watch = pipActive(p.win) === false;
+    const poll = setInterval(() => { if (docPip !== p || (watch && pipActive(p.win))) restore(); }, 400);
+    doc.body.appendChild(bar);
+  }
+
   function ytKick(s, st) {
     const p = docPip, now = Date.now();
     if (st === 1 || st === 3) { p.started = true; return; } // reproduciendo o cargando: ya arrancó
@@ -383,9 +432,9 @@
     if (st === undefined && p.kicks > 0) return; // sin saber el estado, solo el primer empujón
     p.lastKick = now;
     p.kicks++;
-    const send = (func) => s.node.contentWindow.postMessage(JSON.stringify({ event: "command", func, args: [] }), "*");
-    if (p.kicks > 2) { p.quiet = true; send("mute"); }
-    send("playVideo");
+    // sin clic en la ventana (o tras dos intentos con sonido que no arrancan): en silencio
+    if (pipActive(p.win) === false || p.kicks > 2) { pipQuiet(p); ytSend(s, "mute"); }
+    ytSend(s, "playVideo");
   }
   window.addEventListener("message", onFrameMessage);
 
@@ -476,21 +525,7 @@
         ? "https://www.youtube.com/embed/" + encodeURIComponent(ch.videoId) + "?"
         : "https://www.youtube.com/embed/live_stream?channel=" + encodeURIComponent(ch.channelId) + "&";
       f.src = base + "autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0" + origin;
-      // el reproductor de YouTube tarda en estar listo (y más con anuncios): se le pide que avise, una vez por
-      // segundo, hasta que contesta; entonces se le manda el sonido (ver el listener de "message")
-      f.addEventListener("load", () => {
-        if (s.node !== f) return;
-        clearInterval(s.ytTimer);
-        s.ytReady = false;
-        let tries = 0;
-        const ask = () => {
-          if (s.node !== f || s.ytReady || ++tries > 60) { clearInterval(s.ytTimer); return; }
-          ytListen(s);
-          applyAudioTo(s);
-        };
-        ask();
-        s.ytTimer = setInterval(ask, 1000);
-      });
+      f.addEventListener("load", () => ytHandshake(s, f));
       s.media.appendChild(f);
       s.node = f;
       s.el.classList.add("is-yt");
