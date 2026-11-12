@@ -54,8 +54,22 @@ const fakeYouTube153 = () => `<!doctype html><body>153<script>
   });
 </script></body>`;
 
-// Reproductor de Atresplayer de pega, con el puente de sonido real dentro
+// Reproductor de Atresplayer de pega, con el puente de sonido real dentro. Como el de verdad: aviso de cookies
+// (Didomi) que tapa el reproductor y botón «Directo»; apunta en window.clicks lo que se pulsa y en qué orden
 const fakeAtres = () => `<!doctype html><body style="margin:0;background:#030;color:#fff">ATRES<video id="v"></video>
+<button aria-label="Directo" class="button-primary" tabindex="0"><p class="button--text">Directo</p></button>
+<div id="aviso" style="position:fixed;inset:0;background:#000c">
+  <button id="didomi-notice-agree-button" aria-label="Aceptar"><span>Aceptar</span></button></div>
+<script>
+  window.clicks = [];
+  document.getElementById("didomi-notice-agree-button").addEventListener("click", () => {
+    window.clicks.push("aceptar"); document.getElementById("aviso").remove();
+  });
+  document.querySelector('button[aria-label="Directo"]').addEventListener("click", (e) => {
+    window.clicks.push(document.getElementById("aviso") ? "directo-con-aviso" : "directo");
+    e.currentTarget.remove();
+  });
+</script>
 <script>${fs.readFileSync(REPO + "/puente/puente-pantallitas.user.js", "utf8")}</script></body>`;
 
 // Lista de TDTChannels de pega (>= 20 canales, que es lo mínimo que la página acepta)

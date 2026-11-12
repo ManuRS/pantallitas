@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Pantallitas · puente de sonido con Atresplayer",
-  "version": "1.1.0",
-  "description": "Deja que Pantallitas silencie o suba el volumen del reproductor incrustado de Atresplayer. No hace peticiones ni pide permisos.",
+  "version": "1.2.0",
+  "description": "Deja que Pantallitas silencie o suba el volumen del reproductor incrustado de Atresplayer y lo arranca solo (pulsa Aceptar y Directo). No hace peticiones ni pide permisos.",
   "content_scripts": [
     {
       "matches": [

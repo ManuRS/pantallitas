@@ -179,6 +179,9 @@ const { BASE, launch, snapshot, stored, sleep, screenAt, check, summary } = requ
   const ai = s.findIndex((x) => x.name === "Antena 3");
   check("sin foco: se silencia y no se pausa ni se reinicia", am.muted === true && ai === 2 && !s[ai].cls.includes("is-suspended"), [am, ai, s[ai].cls]);
 
+  const aclicks = await atres().evaluate(() => window.clicks);
+  check("el puente acepta el aviso de cookies y después pulsa «Directo», una vez cada uno", JSON.stringify(aclicks) === JSON.stringify(["aceptar", "directo"]), aclicks);
+
   console.log("Copia de las cadenas de Tele/Radio en uso");
   await page.selectOption("#listSel", "tv");
   await sleep(1500);
