@@ -112,6 +112,7 @@ const { BASE, launch, snapshot, stored, sleep, screenAt, check, summary } = requ
   const pipFrame = context.pages().flatMap((pg) => pg.frames()).find((f) => f.url().includes("UCslow"));
   const pipCmds = pipFrame ? await pipFrame.evaluate(() => (window.err153 ? ["error 153"] : window.cmds)) : null;
   check("en la ventana flotante también recibe el sonido", !!pipCmds && pipCmds.includes("unMute"), pipCmds);
+  check("y se le da al play solo", !!pipCmds && pipCmds.includes("playVideo"), pipCmds);
   await page.click("#pipBtn");
   await sleep(800);
   pi = await pipInfo();

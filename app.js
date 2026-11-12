@@ -231,7 +231,7 @@
   // se puede sacar así: en Chrome/Edge de escritorio se mete el iframe en una ventana flotante de documento
   // (Document Picture-in-Picture). Al entrar y al salir el reproductor se recarga (es un directo: no se pierde nada).
   // Atresplayer no: su puente de sonido no se fía de la ventana flotante.
-  let docPip = null; // { win, s, f } mientras YouTube está en la ventana flotante
+  let docPip = null; // { win, s, f, ... } mientras YouTube está en la ventana flotante
 
   const isVideoPip = (s) => !!(s && s.node && s.node.tagName === "VIDEO" && s.node.readyState > 0 && document.pictureInPictureEnabled);
   const isYtPip = (s) => !!(DOC_PIP && s && s.node && s.el.classList.contains("is-yt"));
@@ -264,7 +264,7 @@
     holder.src = new URL("pip.html", location.href).href;
     holder.title = s.nameEl.textContent || "Pantallitas";
     holder.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
-    docPip = { win, s, f };
+    docPip = { win, s, f, t: Date.now(), kicks: 0, lastKick: 0, started: false, quiet: false };
     s.el.classList.add("in-pip");
     syncPipState();
     holder.addEventListener("load", () => {
@@ -272,6 +272,7 @@
       const hw = holder.contentWindow;
       hw.addEventListener("message", onFrameMessage); // YouTube avisa a la página en la que está
       hw.document.body.appendChild(f);
+      docPip.t = Date.now(); // el reproductor se recarga ahora: desde aquí cuenta el empujón al play
     }, { once: true });
     win.document.body.appendChild(holder);
     win.addEventListener("pagehide", () => {
@@ -367,6 +368,24 @@
       applyAudioTo(s);
     }
     if (d.event === "onError") showError(s, YT_ERRORS[d.info] || `YouTube devolvió el error ${d.info}.`);
+    if (docPip && docPip.s === s) ytKick(s, d.info && typeof d.info === "object" ? d.info.playerState : undefined);
+  }
+
+  // YouTube en la ventana flotante: al recargarse ahí puede quedarse parado esperando el play (la ventana es nueva
+  // y el navegador no siempre le deja arrancar con sonido). Se le da al play desde aquí; si con sonido no arranca,
+  // se le pide en silencio, que eso el navegador lo deja siempre (el sonido se recupera en el propio reproductor).
+  const YT_KICK_MS = 15000, YT_KICK_EVERY_MS = 1500, YT_KICKS = 4;
+  function ytKick(s, st) {
+    const p = docPip, now = Date.now();
+    if (st === 1 || st === 3) { p.started = true; return; } // reproduciendo o cargando: ya arrancó
+    if (p.started || now - p.t > YT_KICK_MS || p.kicks >= YT_KICKS || now - p.lastKick < YT_KICK_EVERY_MS) return;
+    if (st !== undefined && st !== -1 && st !== 2 && st !== 5) return; // solo sin empezar, en pausa o en espera
+    if (st === undefined && p.kicks > 0) return; // sin saber el estado, solo el primer empujón
+    p.lastKick = now;
+    p.kicks++;
+    const send = (func) => s.node.contentWindow.postMessage(JSON.stringify({ event: "command", func, args: [] }), "*");
+    if (p.kicks > 2) { p.quiet = true; send("mute"); }
+    send("playVideo");
   }
   window.addEventListener("message", onFrameMessage);
 
@@ -582,7 +601,8 @@
       const send = (func, args) => s.node.contentWindow.postMessage(
         JSON.stringify({ event: "command", func, args }), "*");
       send("setVolume", [Math.round(vol * 100)]);
-      send(audible ? "unMute" : "mute", []);
+      // en la ventana flotante, si solo arrancó en silencio, no se le quita: se volvería a parar
+      send(audible && !(docPip && docPip.s === s && docPip.quiet) ? "unMute" : "mute", []);
     }
   }
 
