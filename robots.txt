@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://pantallitas.pages.dev/sitemap.xml
