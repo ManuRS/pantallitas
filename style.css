@@ -263,6 +263,7 @@ html, body {
 }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .panel h1 { margin: 0; font-size: 18px; }
+.panel-sub { margin: -6px 0 0; font-size: 12px; line-height: 1.4; color: var(--muted); }
 .panel h2 {
   margin: 0 0 8px;
   font-size: 12px;
