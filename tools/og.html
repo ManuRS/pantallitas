@@ -4,12 +4,13 @@
 <style>
   html,body{margin:0}
   body{width:1200px;height:630px;overflow:hidden;font-family:Inter,system-ui,sans-serif;
-    background:radial-gradient(circle at 215px 315px,#1b2a40 0,#121722 300px,#0f131a 700px);
-    display:flex;align-items:center;padding:0 60px 0 72px;box-sizing:border-box}
+    background:radial-gradient(circle at 258px 315px,#1b2a40 0,#121722 300px,#0f131a 700px);
+    display:flex;align-items:center;justify-content:center;padding:0;box-sizing:border-box}
   .row{display:flex;align-items:flex-start;gap:56px}
   /* borde de arriba del icono a la altura de la «P» del título (no de su caja de línea) */
   .logo{flex:none;margin-top:16.5px;width:300px;height:300px;filter:drop-shadow(0 0 40px rgba(77,163,255,.35))}
-  .txt{min-width:0}
+  /* el texto ocupa lo que ocupe el título, así el conjunto se centra con el mismo margen a cada lado */
+  .txt{width:min-content}
   h1{margin:0 0 22px;font-size:128px;line-height:1;font-weight:700;letter-spacing:-2.5px;color:#eef2f7}
   p{margin:0;font-size:44px;line-height:1.2;color:#9fb0c8;letter-spacing:-.3px}
   .accent{margin-top:28px;font-size:52px;color:#4da3ff;font-weight:500}
