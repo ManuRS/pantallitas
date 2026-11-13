@@ -5,7 +5,8 @@
   "scripts": {
     "test": "node run.js",
     "test:rapidas": "node run.js rapidas",
-    "test:lentas": "node run.js lentas"
+    "test:lentas": "node run.js lentas",
+    "test:grabar": "node run.js grabar"
   },
   "devDependencies": {
     "playwright": "^1.50.0"

@@ -12,11 +12,14 @@ const rules = {}; // key -> { mode, n }
 const hits = {};  // key -> nº de peticiones servidas (para saber si una pantallita sigue bajando)
 
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css",
-  ".svg": "image/svg+xml", ".json": "application/json", ".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t", ".png": "image/png" };
+  ".svg": "image/svg+xml", ".json": "application/json", ".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t", ".png": "image/png",
+  ".mp3": "audio/mpeg", ".m4s": "video/iso.segment", ".mp4": "video/mp4" };
 
 http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // /nocors/...: lo mismo que /streams/..., pero sin permiso para leerlo desde otra web (como algunas emisoras)
+  const nocors = u.pathname.startsWith("/nocors/");
+  if (!nocors) res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cache-Control", "no-store");
   if (u.pathname === "/__ctl") {
     const key = u.searchParams.get("key");
@@ -34,6 +37,8 @@ http.createServer((req, res) => {
     if (r && r.mode === "manifest" && r.n > 0 && /(master|radio)\.m3u8$/.test(m[2])) { r.n--; res.statusCode = 404; res.end(); return; }
     hits[key] = (hits[key] || 0) + 1;
     file = path.join(STREAMS, m[2]);
+  } else if (nocors) {
+    file = path.join(STREAMS, u.pathname.slice(8));
   } else if (u.pathname.startsWith("/streams/")) {
     file = path.join(STREAMS, u.pathname.slice(9));
   } else {

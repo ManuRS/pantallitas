@@ -170,6 +170,18 @@ html, body {
 .actions .b-touch[aria-pressed="true"] { background: var(--accent); color: #06121f; }
 .screen.no-touch .media iframe { pointer-events: none; }
 
+/* ⏺ Grabar el audio: solo en las que se pueden grabar. Grabando, en rojo con el tiempo y siempre a la vista */
+.actions .b-rec { display: none; }
+.screen.can-rec .actions .b-rec { display: inline-block; }
+.actions .b-rec[aria-pressed="true"] { display: inline-block; background: #e5484d; color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.screen.is-rec .bar .actions { opacity: 1; }
+.rec-note {
+  position: absolute; z-index: 3; left: 50%; bottom: 10px; transform: translateX(-50%); max-width: calc(100% - 20px);
+  padding: 4px 12px; border-radius: 999px; background: rgba(0,0,0,.8); color: #fff; font-size: 13px; text-align: center;
+  pointer-events: none;
+}
+.rec-note[hidden] { display: none; }
+
 .bar {
   position: absolute;
   z-index: 2; /* por encima del aviso de error, para poder quitar la cadena */

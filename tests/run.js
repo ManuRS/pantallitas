@@ -1,11 +1,11 @@
 // Lanza todo: streams de prueba (ffmpeg), servidor local y las pruebas. Uso: `npm test` (o `node run.js rapidas`)
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
 const STREAMS = path.join(__dirname, "streams");
 const PORT = process.env.PORT || "8123";
-const only = process.argv[2]; // rapidas | lentas | (nada: todas)
+const only = process.argv[2]; // rapidas | lentas | grabar | (nada: todas)
 const kids = [];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -41,10 +41,18 @@ const run = (file, env = {}) => new Promise((resolve) => {
   bg("ffmpeg", ["-hide_banner", "-loglevel", "error", "-re", "-f", "lavfi", "-i", "sine=frequency=660",
     "-c:a", "aac", "-b:a", "64k", "-f", "hls", "-hls_time", "2", "-hls_list_size", "30", "-hls_flags", "delete_segments",
     "streams/radio.m3u8"]);
+  // Para las pruebas de grabar: una radio de enlace directo (MP3) y una tele en HLS con audio y vídeo en el mismo
+  // trozo MP4 (no se puede separar el audio: se graba con MediaRecorder). Las dos son fijas: se hacen de una vez.
+  const once = (args) => spawnSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", ...args], { cwd: __dirname, stdio: "inherit" });
+  once(["-f", "lavfi", "-i", "sine=frequency=550:duration=90", "-c:a", "libmp3lame", "-b:a", "96k", "streams/radio.mp3"]);
+  fs.mkdirSync(path.join(STREAMS, "fmp4"), { recursive: true });
+  once(["-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25:duration=40", "-f", "lavfi", "-i", "sine=frequency=330:duration=40",
+    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-g", "50", "-c:a", "aac", "-b:a", "64k",
+    "-f", "hls", "-hls_time", "2", "-hls_playlist_type", "vod", "-hls_segment_type", "fmp4", "streams/fmp4/index.m3u8"]);
   bg(process.execPath, ["server.js"]);
 
   process.stdout.write("Preparando los streams de prueba");
-  const ready = () => ["master.m3u8", "radio.m3u8", "v0/stream.m3u8", "v1/stream.m3u8"].every((f) => fs.existsSync(path.join(STREAMS, f)));
+  const ready = () => ["master.m3u8", "radio.m3u8", "radio.mp3", "fmp4/index.m3u8", "v0/stream.m3u8", "v1/stream.m3u8"].every((f) => fs.existsSync(path.join(STREAMS, f)));
   for (let i = 0; i < 40 && !ready(); i++) { process.stdout.write("."); await sleep(500); }
   if (!ready()) { console.error("\nffmpeg no ha generado los streams (¿está instalado, con libx264?)"); stop(2); }
   await sleep(6000); // unos cuantos segmentos de ventaja
@@ -57,6 +65,7 @@ const run = (file, env = {}) => new Promise((resolve) => {
     const codes = await Promise.all(["errores", "oculta", "movil"].map((o) => run("lentas.js", { ONLY: o })));
     failed += codes.filter(Boolean).length;
   }
+  if (!only || only === "grabar") failed += await run("grabar.js") ? 1 : 0;
   console.log(failed ? `\n✗ ${failed} tanda(s) con fallos` : "\n✓ Todo bien");
   stop(failed ? 1 : 0);
 })();

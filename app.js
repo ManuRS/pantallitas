@@ -135,12 +135,14 @@
         <span class="name"></span>
         <span class="aud" aria-hidden="true"></span>
         <div class="actions">
+          <button type="button" class="b-rec" aria-pressed="false" title="Grabar el audio" aria-label="Grabar el audio">⏺</button>
           <button type="button" class="b-pip" aria-pressed="false" title="Imagen en imagen" aria-label="Imagen en imagen">⧉</button>
           <button type="button" class="b-touch" aria-pressed="false" aria-label="Ocultar los controles del reproductor">🖱</button>
           <button type="button" class="b-full" title="Pantalla completa" aria-label="Pantalla completa">⛶</button>
           <button type="button" class="b-clear" title="Quitar cadena" aria-label="Quitar cadena">✕</button>
         </div>
       </div>
+      <div class="rec-note" role="status" hidden></div>
       <div class="err"><span class="err-msg">${DEFAULT_ERR}</span><a class="err-link" href="#" target="_blank" rel="noopener" hidden>Abrir en YouTube</a><button type="button">Reintentar</button></div>`;
 
     const s = {
@@ -157,6 +159,10 @@
       errLink: el.querySelector(".err-link"),
       touchBtn: el.querySelector(".b-touch"),
       pipBtn: el.querySelector(".b-pip"),
+      recBtn: el.querySelector(".b-rec"),
+      recNote: el.querySelector(".rec-note"),
+      rec: null,    // grabación en marcha (ver «Grabar el audio»)
+      tap: null,    // escucha del audio de hls.js, para poder grabar (rec.js)
       node: null,   // <video> o <iframe>
       hls: null,
       retries: 0,
@@ -181,6 +187,7 @@
       s.pipBtn.remove(); // el navegador no tiene imagen en imagen (p. ej. Firefox móvil)
       s.pipBtn = null;
     }
+    s.recBtn.addEventListener("click", (e) => { e.stopPropagation(); toggleRec(s); });
     el.querySelector(".err button").addEventListener("click", (e) => { e.stopPropagation(); s.retries = 0; start(s); });
     s.errLink.addEventListener("click", (e) => e.stopPropagation()); // abrir el enlace no es elegir la pantallita
 
@@ -293,10 +300,12 @@
     else openPip(s).catch(() => {});
   }
 
-  function stop(s) {
+  function stop(s, keepRec = false) {
+    if (s.rec && !keepRec) finishRec(s);
     if (s.node && document.pictureInPictureElement === s.node) document.exitPictureInPicture().catch(() => {});
     if (docPip && docPip.s === s) docPip.win.close();
     if (s.hls) { s.hls.destroy(); s.hls = null; }
+    s.tap = null;
     clearInterval(s.ytTimer);
     s.ytReady = false;
     s.parked = false;
@@ -306,7 +315,7 @@
     }
     s.media.innerHTML = "";
     s.bridged = false;
-    s.el.classList.remove("has-error", "is-audio", "is-atres", "is-suspended", "no-touch", "is-video", "is-yt", "in-pip");
+    s.el.classList.remove("has-error", "is-audio", "is-atres", "is-suspended", "no-touch", "is-video", "is-yt", "in-pip", "can-rec");
     if (s.pipBtn) s.pipBtn.setAttribute("aria-pressed", "false");
     syncTouch(s);
   }
@@ -460,6 +469,9 @@
     const hls = new Hls(config);
     let played = false; // ¿ha llegado a cargar vídeo alguna vez?
     s.hls = hls;
+    s.tap = Rec.tap(hls);
+    s.el.classList.add("can-rec");
+    if (s.rec && s.rec.r instanceof Rec.HlsRecorder) s.rec.r.attach(s.tap); // se recarga la cadena que se graba
     hls.loadSource(url);
     hls.attachMedia(media);
     hls.on(Hls.Events.MANIFEST_PARSED, () => { if (!s.parked) media.play().catch(() => {}); });
@@ -490,8 +502,9 @@
   }
 
   function start(s) {
-    stop(s);
     const ch = byId[state.slots[s.i]];
+    // recargar la misma cadena no corta su grabación (salvo la de último recurso, que va pegada al <video> de antes)
+    stop(s, !!(s.rec && ch && s.rec.chId === ch.id && !(s.rec.r instanceof Rec.CaptureRecorder)));
     s.el.classList.toggle("is-empty", !ch);
     s.el.draggable = !!ch; // solo se pueden mover las que tienen cadena
     s.nameEl.textContent = ch ? ch.name : "";
@@ -568,6 +581,7 @@
         playHls(s, a, ch.url, HLS_AUDIO, "La radio no arranca (¿el stream ha cambiado?).");
       } else {
         a.src = ch.url;
+        if (/^https?:/i.test(ch.url)) s.el.classList.add("can-rec"); // se intenta al pulsar (si la emisora deja)
       }
       a.play().catch(() => {});
     } else {
@@ -608,6 +622,87 @@
     screens.forEach((s) => {
       if (s.i < state.count && s.hls && s.el.classList.contains("has-error")) { s.retries = 0; start(s); }
     });
+  });
+
+  // ---------- Grabar el audio ----------
+  // ⏺ en cada pantallita con sonido que se pueda grabar (ver rec.js). Graba aunque no tenga el foco; al volver a
+  // pulsar, para y descarga el archivo. Se pueden grabar varias a la vez.
+  const pad = (n) => String(n).padStart(2, "0");
+  const clock = (ms) => {
+    const t = Math.floor(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60;
+    return (h ? h + ":" + pad(m) : m) + ":" + pad(t % 60);
+  };
+
+  function recNote(s, text) {
+    clearTimeout(s.recNoteTimer);
+    s.recNote.textContent = text;
+    s.recNote.hidden = false;
+    s.recNoteTimer = setTimeout(() => { s.recNote.hidden = true; }, 5000);
+  }
+
+  function syncRecBtn(s) {
+    const on = !!s.rec;
+    s.el.classList.toggle("is-rec", on);
+    s.recBtn.setAttribute("aria-pressed", String(on));
+    s.recBtn.textContent = on ? "⏺ " + clock(Date.now() - s.rec.began) : "⏺";
+    s.recBtn.title = on ? "Parar y guardar la grabación" : "Grabar el audio";
+    s.recBtn.setAttribute("aria-label", s.recBtn.title);
+  }
+
+  async function startRec(s) {
+    const ch = byId[state.slots[s.i]];
+    if (!ch || !s.node || s.rec) return;
+    let r;
+    if (s.tap && !s.tap.muxed) r = new Rec.HlsRecorder();
+    else if (s.tap && Rec.canCapture(s.node)) r = new Rec.CaptureRecorder(s.node); // audio y vídeo juntos
+    else if (!s.hls && ch.type === "audio" && /^https?:/i.test(ch.url)) r = new Rec.StreamRecorder(ch.url);
+    if (!r) { recNote(s, "Esta cadena no se puede grabar"); return; }
+    const rec = { r, chId: ch.id, name: ch.name, began: Date.now(), timer: 0 };
+    s.rec = rec;
+    syncRecBtn(s);
+    try {
+      await r.start();
+    } catch {
+      if (s.rec === rec) { s.rec = null; syncRecBtn(s); }
+      recNote(s, "Esta emisora no deja grabarla desde aquí");
+      return;
+    }
+    if (s.rec !== rec) { r.stop(); return; } // se paró mientras arrancaba
+    if (r instanceof Rec.HlsRecorder) r.attach(s.tap, s.node.currentTime);
+    rec.timer = setInterval(() => syncRecBtn(s), 1000);
+  }
+
+  function finishRec(s) {
+    const rec = s.rec;
+    if (!rec) return;
+    s.rec = null;
+    clearInterval(rec.timer);
+    syncRecBtn(s);
+    const d = new Date(rec.began);
+    const base = `${rec.name} ${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}-${pad(d.getMinutes())}`
+      .replace(/[\\/:*?"<>|]+/g, "-");
+    rec.r.stop().then((files) => {
+      if (!files.length) { recNote(s, "No se ha grabado nada"); return; }
+      files.forEach(({ blob, ext }, k) => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = base + (files.length > 1 ? ` (${k + 1})` : "") + "." + ext;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      });
+    });
+  }
+
+  function toggleRec(s) {
+    if (s.rec) finishRec(s);
+    else startRec(s);
+  }
+
+  // Cerrar o recargar la página perdería lo grabado: el navegador pregunta antes
+  window.addEventListener("beforeunload", (e) => {
+    if (screens.some((s) => s.rec)) { e.preventDefault(); e.returnValue = ""; }
   });
 
   // ---------- Audio: solo suena la pantalla con foco ----------
@@ -987,6 +1082,7 @@
     if (document.visibilityState === "visible") return;
     screens.forEach((s) => {
       if (!s.hls || s.parked || s.i === state.active || s.node === document.pictureInPictureElement) return;
+      if (s.rec) return; // la que está grabando no se suspende: se cortaría la grabación
       if (s.el.classList.contains("has-error")) return;
       s.parked = true;
       s.hls.stopLoad();
