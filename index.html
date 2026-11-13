@@ -53,7 +53,7 @@
   </script>
 
   <!-- ?v=N: al cambiar style.css o cualquiera de los .js, súbele el número a todos para que nadie se quede con una mezcla de versiones -->
-  <link rel="stylesheet" href="style.css?v=22">
+  <link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
   <div class="app" id="app">
@@ -76,7 +76,7 @@
         </div>
         <div class="tools">
           <button type="button" id="focusBtn" class="toggle" aria-pressed="false" title="Una grande y las demás alrededor, mirando (F)">Modo foco</button>
-          <button type="button" id="pipBtn" class="toggle" aria-pressed="false" hidden title="Saca la pantallita con foco en una ventana flotante (imagen en imagen)">Imagen en imagen</button>
+          <button type="button" id="pipBtn" class="toggle" aria-pressed="false" hidden title="Imagen en imagen automática: al cambiar de pestaña, la pantallita con foco sale sola en una ventana flotante">Imagen en imagen</button>
           <button type="button" id="fsBtn" class="toggle" aria-pressed="false" title="Todo Pantallitas a pantalla completa, menú incluido (P)">Pantalla completa</button>
           <button type="button" id="pinBtn" class="toggle" aria-pressed="false" title="Guarda las cadenas, su orden y el foco para recuperarlos siempre al abrir la página">Guardar orden</button>
         </div>
@@ -121,7 +121,7 @@
         <ul>
           <li><b>Foco:</b> clic en una pantallita o números 1 a 8</li>
           <li><b>Cadenas:</b> púlsalas o arrástralas a una pantallita; ☆ las guarda en <i>Favs</i>. <i>Tele</i> y <i>Radio</i> de <a href="https://github.com/LaQuay/TDTChannels" target="_blank" rel="noopener">TDTChannels</a> (<a href="https://github.com/ManuRS/pantallitas/blob/main/CREDITOS.md" target="_blank" rel="noopener">créditos</a>); <i>Creator</i> es una lista de bienvenida</li>
-          <li><b>Mover:</b> arrastra una pantallita sobre otra. ⧉ = imagen en imagen (vídeo; YouTube solo en Chrome/Edge de escritorio). ⏺ = grabar el audio (no en YouTube ni Atresplayer). <i>Guardar orden</i>: lo que ves se recupera siempre al abrir</li>
+          <li><b>Mover:</b> arrastra las pantallitas. ⧉ = imagen en imagen (YouTube solo en Chrome/Edge escritorio). ⏺ = grabar el audio (no en YouTube ni Atresplayer). <i>Guardar orden</i>: lo que ves se recupera al abrir</li>
           <li><b>Antena 3 y laSexta:</b> acepta sus cookies y pulsa «Directo». Con el puente (opcional), lo hace él por ti</li>
           <li><b>Puente (opcional):</b> arranca Antena 3 y laSexta solas (aceptando sus cookies) y las silencia fuera de foco. Descarga <a href="puente/puente-pantallitas.user.js" download>puente-pantallitas.user.js</a> y <a href="puente/manifest.json" download>manifest.json</a>, ponlos juntos en una carpeta y cárgala en <code>chrome://extensions</code> (Modo desarrollador ▸ Cargar descomprimida). Detalles en el <a href="https://github.com/ManuRS/pantallitas/tree/main/puente" target="_blank" rel="noopener">README</a>, idea de <a href="https://github.com/cibernicola/tdt-local" target="_blank" rel="noopener">tdt-local</a></li>
         </ul>
@@ -133,9 +133,9 @@
 
   <!-- hls.js 1.7.4, copiado en el repo (ver CREDITOS.md): versión fija y sin depender de un CDN -->
   <script src="vendor/hls.min.js?v=1.7.4"></script>
-  <script src="channels.js?v=22"></script>
-  <script src="catalog.js?v=22"></script>
-  <script src="rec.js?v=22"></script>
-  <script src="app.js?v=22"></script>
+  <script src="channels.js?v=24"></script>
+  <script src="catalog.js?v=24"></script>
+  <script src="rec.js?v=24"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

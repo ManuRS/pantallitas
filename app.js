@@ -75,6 +75,7 @@
     menuHidden: saved.menuHidden === true,  // menú lateral oculto
     volume: clamp01(saved.volume, 0.8),
     muted: saved.muted === true,
+    autoPip: saved.autoPip === true, // imagen en imagen automática al cambiar de pestaña (botón del menú)
     pinned: pin,        // orden guardado (o null)
     interacted: false,  // el navegador no deja sonar hasta el primer gesto
   };
@@ -84,7 +85,7 @@
       localStorage.setItem(KEY, JSON.stringify({
         count: state.count, slots: state.slots, active: state.active,
         focus: state.focus, menuHidden: state.menuHidden, view: state.view,
-        volume: state.volume, muted: state.muted, pinned: state.pinned,
+        volume: state.volume, muted: state.muted, autoPip: state.autoPip, pinned: state.pinned,
       }));
     } catch { /* sin almacenamiento: no pasa nada */ }
     saveKnown();
@@ -626,7 +627,9 @@
 
   // ---------- Grabar el audio ----------
   // ⏺ en cada pantallita con sonido que se pueda grabar (ver rec.js). Graba aunque no tenga el foco; al volver a
-  // pulsar, para y descarga el archivo. Se pueden grabar varias a la vez.
+  // pulsar, para y descarga el archivo. Se pueden grabar varias a la vez. En HLS la grabación empieza 30 s antes de
+  // pulsar (sale de la memoria de audio reciente de rec.js); en las radios de enlace directo, al pulsar.
+  const REC_BEFORE_S = 30;
   const pad = (n) => String(n).padStart(2, "0");
   const clock = (ms) => {
     const t = Math.floor(ms / 1000), h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60;
@@ -668,7 +671,8 @@
       return;
     }
     if (s.rec !== rec) { r.stop(); return; } // se paró mientras arrancaba
-    if (r instanceof Rec.HlsRecorder) r.attach(s.tap, s.node.currentTime);
+    // empieza 30 s antes de pulsar (o desde que se sintonizó, si hace menos)
+    if (r instanceof Rec.HlsRecorder) r.attach(s.tap, s.node.currentTime - REC_BEFORE_S);
     rec.timer = setInterval(() => syncRecBtn(s), 1000);
   }
 
@@ -979,10 +983,10 @@
     save();
   }
 
-  // ---------- Imagen en imagen desde el menú ----------
-  // El botón del menú saca (o cierra) la ventana flotante de la pantallita con foco. Solo si la del foco no tiene
-  // imagen (radio, vacía) se saca otra: la primera que se pueda. Si la del foco tiene imagen pero el navegador no
-  // deja sacarla (YouTube fuera de Chrome/Edge, Atresplayer), no se saca otra en su lugar.
+  // ---------- Imagen en imagen automática ----------
+  // Qué pantallita sale sola al cambiar de pestaña: la que tiene el foco. Solo si la del foco no tiene imagen
+  // (radio, vacía) sale otra: la primera que se pueda. Si la del foco tiene imagen pero el navegador no deja
+  // sacarla (YouTube fuera de Chrome/Edge, Atresplayer), no sale otra en su lugar.
   function pickPipScreen() {
     const f = screens[state.active];
     if (f && canPip(f)) return f;
@@ -995,23 +999,17 @@
     return s && s.node.tagName === "VIDEO" ? s.node : null;
   }
 
-  function togglePipMenu() {
-    if (document.pictureInPictureElement || docPip) { closePip(); return; }
-    const s = pickPipScreen();
-    if (s) openPip(s).catch(() => {});
+  // El botón del menú enciende o apaga la imagen en imagen automática: al cambiar de pestaña, la pantallita con
+  // foco sale sola en una ventana flotante. Apagado, no sale (para sacarla a mano está el ⧉ de cada pantallita).
+  function toggleAutoPip() {
+    state.autoPip = !state.autoPip;
+    save();
+    setupMediaSession();
+    syncPipBtn();
   }
 
-  const PIP_TITLE = pipBtn.title;
   function syncPipBtn() {
-    const on = !!document.pictureInPictureElement || !!docPip;
-    pipBtn.setAttribute("aria-pressed", String(on));
-    pipBtn.disabled = !on && !pickPipScreen();
-    const f = screens[state.active];
-    pipBtn.title = pipBtn.disabled && f && f.node && f.node.tagName === "IFRAME"
-      ? (f.el.classList.contains("is-yt")
-        ? "Este navegador no deja sacar YouTube a una ventana flotante (en Chrome o Edge de escritorio sí)"
-        : "Atresplayer no se puede sacar a una ventana flotante")
-      : PIP_TITLE;
+    pipBtn.setAttribute("aria-pressed", String(state.autoPip));
   }
 
   function syncPipState() {
@@ -1019,15 +1017,16 @@
     syncPipBtn();
   }
 
-  // Imagen en imagen automática de Chrome: se deja registrada la acción de Media Session por si el navegador la usa
-  // (en las pruebas reales no salta sola, pero no estorba). Vídeo elegido por esa vía: se cierra al volver a la pestaña.
+  // Imagen en imagen automática de Chrome (al cambiar de pestaña): va con la acción de Media Session, que solo se
+  // registra con el interruptor del menú encendido. Vídeo sacado por esa vía: se cierra al volver a la pestaña.
   let autoPipVideo = null;
 
   function setupMediaSession() {
     try {
       if (!("mediaSession" in navigator) || !(document.pictureInPictureEnabled || DOC_PIP)) return;
       const ms = navigator.mediaSession;
-      ms.setActionHandler("enterpictureinpicture", () => {
+      // solo con el interruptor del menú encendido: sin esta acción, Chrome no la saca sola
+      ms.setActionHandler("enterpictureinpicture", !state.autoPip ? null : () => {
         const s = pickPipScreen();
         if (!s || document.pictureInPictureElement || docPip) return undefined;
         return openPip(s).then((w) => { if (w) autoPipVideo = s.node; return w; });
@@ -1449,7 +1448,7 @@
   listFilter.addEventListener("input", () => { filterText = listFilter.value; renderList(); });
 
   focusBtn.addEventListener("click", () => setFocusMode(!state.focus));
-  pipBtn.addEventListener("click", togglePipMenu);
+  pipBtn.addEventListener("click", toggleAutoPip);
   pinBtn.addEventListener("click", togglePin);
   hideBtn.addEventListener("click", () => setMenuHidden(true));
   showBtn.addEventListener("click", () => setMenuHidden(false));

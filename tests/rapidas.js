@@ -97,15 +97,16 @@ const { BASE, launch, snapshot, stored, sleep, screenAt, check, summary } = requ
     return {
       open: !!w, src: f ? f.src : "", video: !!document.pictureInPictureElement,
       bigInPip: big.classList.contains("in-pip"), bigHasFrame: !!big.querySelector("iframe"),
-      pressed: document.getElementById("pipBtn").getAttribute("aria-pressed"),
+      pressed: big.querySelector(".b-pip").getAttribute("aria-pressed"),
       holder: h ? h.src : "", bigErr: big.classList.contains("has-error") ? big.querySelector(".err-msg").textContent : "",
     };
   });
-  check("con YouTube en la grande, el botón del menú está disponible", !(await page.locator("#pipBtn").isDisabled()));
-  await page.click("#pipBtn");
+  const bigPip = () => screenAt(page, 0).locator(".b-pip").click({ force: true }); // su ⧉
+  check("con YouTube en la grande, su ⧉ se ve", await screenAt(page, 0).locator(".b-pip").evaluate((b) => getComputedStyle(b).display !== "none"));
+  await bigPip();
   await sleep(2500);
   let pi = await pipInfo();
-  check("sale la grande (YouTube), no otra pantallita", pi.open && pi.src.includes("UCslow") && !pi.video, pi);
+  check("sale la grande (YouTube)", pi.open && pi.src.includes("UCslow") && !pi.video, pi);
   check("YouTube no da el error 153 en la ventana flotante (le llega desde qué página va)", !pi.err153 && !pi.bigErr, pi);
   check("su casilla avisa de que está en la ventana flotante", pi.bigInPip && !pi.bigHasFrame && pi.pressed === "true", pi);
   await sleep(8500); // el YouTube de pega tarda 7 s tras recargarse en la ventana
@@ -125,7 +126,7 @@ const { BASE, launch, snapshot, stored, sleep, screenAt, check, summary } = requ
     const pipCmds2 = await pipFrame.evaluate(() => window.cmds);
     check("al pulsar el aviso vuelve el sonido y el aviso se quita", pipCmds2.includes("unMute") && (await barra.count()) === 0, pipCmds2);
   }
-  await page.click("#pipBtn");
+  await bigPip();
   await sleep(800);
   pi = await pipInfo();
   check("al cerrarla, YouTube vuelve a su pantallita", !pi.open && !pi.bigInPip && pi.bigHasFrame && pi.pressed === "false", pi);
@@ -139,7 +140,7 @@ const { BASE, launch, snapshot, stored, sleep, screenAt, check, summary } = requ
       return w;
     };
   });
-  await page.click("#pipBtn");
+  await bigPip();
   await sleep(13000);
   const qPage = context.pages().find((pg) => pg !== page);
   const qFrame = () => qPage.frames().find((f) => f.url().includes("UCslow"));
@@ -151,7 +152,7 @@ const { BASE, launch, snapshot, stored, sleep, screenAt, check, summary } = requ
   await sleep(900);
   q = await qFrame().evaluate(() => window.cmds);
   check("al primer clic en la ventana vuelve el sonido y se quita el aviso", q.includes("unMute") && (await qBarra.count()) === 0, q);
-  await page.click("#pipBtn");
+  await bigPip();
   await sleep(800);
   pi = await pipInfo();
   check("y al cerrarla vuelve a su pantallita", !pi.open && pi.bigHasFrame, pi);
@@ -264,6 +265,28 @@ const { BASE, launch, snapshot, stored, sleep, screenAt, check, summary } = requ
   await page.reload(); await sleep(2500);
   check("al recargar vuelve el orden guardado", JSON.stringify((await stored(page)).slots) === JSON.stringify(pinned), [(await stored(page)).slots, pinned]);
   await page.click("#pinBtn");
+
+  console.log("Imagen en imagen automática (botón del menú)");
+  // apunta si la página deja registrada la acción con la que Chrome la saca sola al cambiar de pestaña
+  await page.addInitScript(() => {
+    if (!("mediaSession" in navigator)) return;
+    const orig = navigator.mediaSession.setActionHandler.bind(navigator.mediaSession);
+    navigator.mediaSession.setActionHandler = (a, h) => { if (a === "enterpictureinpicture") window.__autoPip = !!h; return orig(a, h); };
+  });
+  await page.reload(); await sleep(2500);
+  const autoInfo = () => page.evaluate(() => ({ pressed: document.getElementById("pipBtn").getAttribute("aria-pressed"), handler: window.__autoPip }));
+  let ap = await autoInfo();
+  check("de serie está apagada: botón sin pulsar y Chrome no la saca sola", ap.pressed === "false" && ap.handler === false, ap);
+  await page.click("#pipBtn"); await sleep(300);
+  ap = await autoInfo();
+  check("al pulsarlo se enciende", ap.pressed === "true" && ap.handler === true, ap);
+  check("y no saca ninguna ventana flotante en ese momento", !(await pipInfo()).open && !(await pipInfo()).video);
+  await page.reload(); await sleep(2500);
+  ap = await autoInfo();
+  check("se acuerda al recargar", ap.pressed === "true" && ap.handler === true, ap);
+  await page.click("#pipBtn"); await sleep(300);
+  ap = await autoInfo();
+  check("y se vuelve a apagar", ap.pressed === "false" && ap.handler === false && (await stored(page)).autoPip === false, ap);
 
   check("sin errores de JavaScript en toda la sesión", errors.length === 0, errors);
   await browser.close();

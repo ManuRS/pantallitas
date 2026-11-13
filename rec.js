@@ -3,8 +3,9 @@
 // Se guarda el audio tal cual llega del stream, sin volver a codificarlo (misma calidad, casi sin gastar CPU),
 // así que se graba aunque esa pantallita esté sin foco y silenciada:
 //   - HLS (teles m3u8 y radios m3u8): hls.js ya separa el audio en trozos MP4; se van juntando en un .m4a
-//     (o .mp3, si la radio da MP3). Cada pantallita guarda además el último minuto y medio de audio: así la
-//     grabación empieza en lo que se está oyendo al pulsar, no en lo que hls.js descarga por delante.
+//     (o .mp3, si la radio da MP3). Cada pantallita guarda además el último minuto y medio de audio descargado
+//     (unos 1,5 MB): así la grabación puede empezar antes de pulsar (app.js pide 30 s), y no en lo que hls.js va
+//     descargando por delante (hasta 30 s más allá de lo que se oye).
 //   - Radios de enlace directo (.mp3/.aac, Icecast...): se abre una segunda conexión al stream y se guarda lo que
 //     llega. Solo si la emisora lo permite (CORS).
 //   - HLS con audio y vídeo en el mismo trozo (MP4 «muxed»): no se puede separar; se graba lo que suena con
@@ -137,8 +138,10 @@ const Rec = (() => {
       const data = d.data.slice(); // hls.js puede reutilizar el suyo
       const mp4 = t.container !== "audio/mpeg";
       if (mp4 && isInit(data)) {
+        // al cambiar de calidad llega otra cabecera igual: la memoria reciente sigue valiendo. Solo si cambia el
+        // formato del audio los trozos de antes ya no casan con ella.
+        if (!t.init || initKey(data) !== initKey(t.init)) t.frags = [];
         t.init = data;
-        t.frags = []; // con otro inicio, los trozos de antes ya no casan
         if (t.listener) t.listener.onInit(data);
         return;
       }
@@ -170,14 +173,14 @@ const Rec = (() => {
       this.tap = null;
     }
 
-    attach(t, currentTime) {
+    attach(t, fromTime) {
       if (this.tap) this.tap.listener = null;
       this.tap = t;
       t.listener = this;
       if (t.container === "audio/mpeg") this.open(null);
       else if (t.init) this.onInit(t.init);
-      // lo ya descargado desde lo que se está oyendo ahora (o lo que haya, si no se sabe)
-      const from = typeof currentTime === "number" ? currentTime : -Infinity;
+      // lo ya descargado desde el momento pedido (o todo lo que haya, si no se sabe)
+      const from = typeof fromTime === "number" ? fromTime : -Infinity;
       t.frags.filter((f) => f.end > from).forEach((f) => this.onFrag(f));
     }
 

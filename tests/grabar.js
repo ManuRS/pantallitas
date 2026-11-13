@@ -70,7 +70,7 @@ function probe(file) {
   const vw0 = (await snapshot(page))[1].vw;
   const mediaOf = (pos) => screenAt(page, pos).evaluate((el) => {
     const m = el.querySelector("video, audio");
-    return { t: m.currentTime, end: m.buffered.length ? m.buffered.end(m.buffered.length - 1) : 0 };
+    return { t: m.currentTime, start: m.buffered.length ? m.buffered.start(0) : 0, end: m.buffered.length ? m.buffered.end(m.buffered.length - 1) : 0 };
   });
   const t0 = Date.now();
   const m0 = await mediaOf(1);
@@ -90,10 +90,11 @@ function probe(file) {
   check("se descarga un .m4a con el nombre de la cadena y la hora", /^Sky News \d{4}-\d\d-\d\d \d\d-\d\d\.m4a$/.test(out.name), out.name);
   check("solo audio AAC, sin vídeo", p.audio.join() === "aac" && p.video === 0, p);
   check("empieza en 0 y se decodifica sin errores", p.start < 0.1 && !p.decodeErr, p);
-  // empieza en lo que se oía y llega hasta lo ya descargado por delante (como mucho ~20 s más), sin trozos repetidos
-  check("dura lo que estuvo grabando, más lo ya descargado por delante", p.real >= secs - 1.5 && p.real < secs + 22, { real: p.real, secs: Math.round(secs) });
+  // empieza 30 s antes de pulsar (o al sintonizar, si hace menos) y llega hasta lo ya descargado por delante
+  check("dura lo que estuvo grabando, más lo de antes y lo ya descargado por delante", p.real >= secs - 1.5 && p.real < secs + 30 + 32, { real: p.real, secs: Math.round(secs) });
   check("y la cabecera dice esa duración", Math.abs(p.dur - p.real) < 0.5, { cabecera: p.dur, real: p.real });
-  const expected = m1.end - m0.t; // de lo que se oía al pulsar al final de lo descargado al parar
+  // desde 30 s antes de lo que se oía al pulsar (o desde lo primero que hay) al final de lo descargado al parar
+  const expected = m1.end - Math.max(m0.t - 30, m0.start);
   check("sin trozos repetidos ni perdidos al cambiar de calidad", Math.abs(p.real - expected) < 2.5, { real: p.real, expected });
   console.log("     (grabó " + secs.toFixed(1) + " s y el archivo dura " + p.real.toFixed(1) + " s; esperado " + expected.toFixed(1) + " s)");
   const inChrome = await page.evaluate(async (b64) => {
@@ -102,6 +103,17 @@ function probe(file) {
   }, fs.readFileSync(out.file).toString("base64"));
   check("y el propio Chrome lo abre con esa duración", Math.abs(inChrome - p.real) < 0.5, { chrome: inChrome, real: p.real });
   check("al parar vuelve a ⏺", (await recInfo(1)).text === "⏺");
+
+  console.log("Empieza 30 s antes de pulsar");
+  await sleep(35000); // CNN (la 3) lleva ya más de 30 s sonando
+  const c0 = await mediaOf(2);
+  await recBtn(2).click({ force: true });
+  await sleep(3000);
+  const c1 = await mediaOf(2);
+  out = await stopAndSave(2);
+  p = probe(out.file);
+  const exp30 = c1.end - (c0.t - 30);
+  check("trae los 30 s de antes de pulsar", Math.abs(p.real - exp30) < 2.5 && p.real > 30 + 3, { real: p.real, esperado: exp30 });
 
   console.log("Radio HLS (la 3)");
   await put(2, "Radio Uno");
@@ -194,7 +206,7 @@ function probe(file) {
   });
   out = await stopAndSave(2);
   p = probe(out.file);
-  check("y su grabación va seguida (~40 s)", p.real > 38 && p.real < 60 && Math.abs(p.dur - p.real) < 0.5 && !p.decodeErr, p);
+  check("y su grabación va seguida (~40 s y lo de antes)", p.real > 38 && p.real < 95 && Math.abs(p.dur - p.real) < 0.5 && !p.decodeErr, p);
 
   const errs = errors.filter((e) => !/nocors\/radio\.mp3.*CORS policy/.test(e)); // el bloqueo de la radio cerrada es lo esperado
   check("sin errores en la consola", errs.length === 0, errs);
