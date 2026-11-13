@@ -142,15 +142,34 @@ function probe(file) {
   p = probe(out.file);
   check("graba su audio (sin vídeo) y se decodifica", /\.(webm|m4a)$/.test(out.name) && p.audio.length === 1 && p.video === 0 && !p.decodeErr, { out: out.name, p });
 
-  console.log("Cambiar de cadena mientras graba");
+  console.log("Una pantallita que graba no se cambia ni se quita");
+  let downloads = 0;
+  page.on("download", () => downloads++);
   await recBtn(1).click({ force: true });
-  await sleep(3000);
-  const dl = page.waitForEvent("download", { timeout: 15000 });
+  await sleep(2000);
   await screenAt(page, 1).click({ position: { x: 100, y: 100 } });
   await page.locator("#channels .ch", { hasText: "CNN" }).first().click();
-  const d = await dl.catch(() => null);
-  check("se para y se descarga lo grabado", !!d && /^Sky News /.test(d.suggestedFilename()), d && d.suggestedFilename());
-  check("y la casilla ya no graba", !(await recInfo(1)).rec);
+  await sleep(1000);
+  s = await snapshot(page);
+  r = await recInfo(1);
+  check("elegir otra cadena: no cambia, sigue grabando y avisa", s[1].name === "Sky News" && r.rec && /para la grabación antes de cambiarla/.test(r.note), { name: s[1].name, r });
+  await screenAt(page, 1).locator(".b-clear").click({ force: true });
+  await sleep(500);
+  s = await snapshot(page);
+  check("✕: no se quita y sigue grabando", s[1].name === "Sky News" && (await recInfo(1)).rec, s[1].name);
+  await page.click('#count button[data-count="1"]');
+  await sleep(800);
+  r = await recInfo(1);
+  check("pasar a 1 pantallita: no se quita y avisa", (await page.locator(".screen:visible").count()) >= 2 && r.rec && /antes de quitarla/.test(r.note), r);
+  check("y no se ha descargado nada", downloads === 0, downloads);
+  await page.click('#count button[data-count="6"]'); // más pantallitas sí
+  await sleep(800);
+  check("pasar a más pantallitas sí, sin cortarla", (await page.locator(".screen:visible").count()) === 6 && (await recInfo(1)).rec);
+  await page.click('#count button[data-count="4"]');
+  await sleep(800);
+  out = await stopAndSave(1);
+  p = probe(out.file);
+  check("al pararla se descarga entera", /^Sky News /.test(out.name) && p.real > 4 && !p.decodeErr, { out: out.name, p });
   await screenAt(page, 0).click({ position: { x: 200, y: 200 } });
 
   console.log("Pestaña oculta: la que graba no se suspende");

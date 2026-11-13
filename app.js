@@ -225,7 +225,7 @@
       const id = e.dataTransfer.getData("text/plain");
       if (byId[id] && isPlayable(byId[id])) {
         const at = assign(s.i, id);
-        setActive(at);
+        if (at >= 0) setActive(at);
       }
     });
 
@@ -831,18 +831,24 @@
   // radio, si no uno vacío y si no el último.
   function radioSlot() {
     const small = Array.from({ length: state.count - 1 }, (_, k) => k + 1);
-    const pick = small.find((k) => isAudioSlot(k)) || small.find((k) => !state.slots[k]) || state.count - 1;
+    const free = (k) => !screens[k].rec; // una radio que está grabando no se cambia
+    const pick = small.find((k) => isAudioSlot(k) && free(k)) || small.find((k) => !state.slots[k]) || small.reverse().find(free) || state.count - 1;
     return pick;
   }
 
-  // Devuelve la casilla en la que ha quedado la cadena (puede no ser la pedida: ver radioSlot)
+  // Devuelve la casilla en la que ha quedado la cadena (puede no ser la pedida: ver radioSlot), o -1 si no se
+  // puede porque esa pantallita está grabando: no se le cambia la cadena ni se quita hasta parar la grabación.
   function assign(i, id) {
     let moved = false;
     if (id && i === 0 && focusOn() && isAudioId(id)) {
       i = radioSlot();
       moved = state.active === 0;
-      if (moved) state.active = i; // el foco (y el sonido) se van con la radio a su huequito
     }
+    if (screens[i].rec && state.slots[i] !== id) {
+      recNote(screens[i], "Está grabando: para la grabación antes de cambiarla");
+      return -1;
+    }
+    if (moved) state.active = i; // el foco (y el sonido) se van con la radio a su huequito
     state.slots[i] = id;
     screens[i].retries = 0;
     start(screens[i]);
@@ -1428,7 +1434,14 @@
   countEl.addEventListener("click", (e) => {
     const b = e.target.closest("button[data-count]");
     if (!b) return;
-    state.count = Number(b.dataset.count);
+    const n = Number(b.dataset.count);
+    // no se quita ninguna pantallita que esté grabando
+    const busy = screens.filter((s) => s.rec && s.i < state.count && s.i >= n);
+    if (busy.length) {
+      busy.forEach((s) => recNote(s, "Está grabando: para la grabación antes de quitarla"));
+      return;
+    }
+    state.count = n;
     layout();
   });
 
