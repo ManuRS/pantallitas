@@ -28,9 +28,9 @@ npm run test:grabar   # solo las de grabar el audio (necesitan también ffprobe,
 
 | Fichero | Qué mira |
 | --- | --- |
-| `rapidas.js` | Arranque, primer gesto y sonido, calidad según el tamaño de la pantallita, teclado y modo foco, la radio fuera de la pantalla grande, YouTube que tarda en estar listo, imagen en imagen de YouTube (con y sin clic en la ventana flotante), arrastres (de la lista y entre pantallitas), puente de Atresplayer (sonido y arranque solo), copia de las cadenas de Tele/Radio cuando TDTChannels las renombra, y «Guardar orden» |
+| `rapidas.js` | Arranque, primer gesto y sonido, calidad según el tamaño de la pantallita, teclado y modo foco, la radio fuera de la pantalla grande, YouTube que tarda en estar listo, imagen en imagen de YouTube (con y sin clic en la ventana flotante), arrastres (de la lista y entre pantallitas), puente de Atresplayer (sonido y arranque solo), copia de las cadenas de Tele/Radio cuando TDTChannels las renombra, «Guardar orden» e imagen en imagen automática (interruptor del menú, apagado de serie y guardado) |
 | `lentas.js` | Errores de HLS (manifiesto que falla, cadena muerta, reintentos en sesiones largas, corte de red de 12 s), pestaña oculta (parar y volver al directo) y móvil (deslizar como primer gesto, toque, modo foco) |
-| `grabar.js` | Grabar el audio: tele HLS sin foco (y cambiando de calidad a mitad), radio HLS, radio de enlace directo con y sin permiso CORS, tele con audio y vídeo en el mismo trozo MP4, cambiar de cadena grabando y pestaña oculta. Los archivos se comprueban con ffprobe/ffmpeg |
+| `grabar.js` | Grabar el audio: tele HLS sin foco (y cambiando de calidad a mitad), que empiece 30 s antes de pulsar, radio HLS, radio de enlace directo con y sin permiso CORS, tele con audio y vídeo en el mismo trozo MP4, que grabando no se pueda cambiar de cadena ni quitar la pantallita, y pestaña oculta. Los archivos se comprueban con ffprobe/ffmpeg |
 
 Lo demás es infraestructura: `run.js` lo orquesta, `server.js` sirve el repo y los streams (y sabe provocar fallos) y
 `lib.js` tiene los canales de prueba y las utilidades.
