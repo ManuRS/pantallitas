@@ -1,5 +1,5 @@
-# pantallitas
+# Pantallitas
 
-Pues eso, pantallitas:
+Pues eso, Pantallitas:
 
-[![Pantallitas](og.png)](https://manurs.github.io/pantallitas/)
+[![Pantallitas](og.png)](https://pantallitas.pages.dev/)
